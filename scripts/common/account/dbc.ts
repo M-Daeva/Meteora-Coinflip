@@ -1,0 +1,101 @@
+import * as anchor from "@coral-xyz/anchor";
+import * as spl from "@solana/spl-token";
+import { DynamicBondingCurve } from "../schema/dbc/dynamic_bonding_curve";
+import { IHelpers, ResultType, TxSettings } from "../interfaces";
+import { BPF_LOADER_UPGRADEABLE, IBlockchainProvider } from "./provider";
+import { IdlAccounts } from "@coral-xyz/anchor";
+import {
+  AppToken,
+  Cluster,
+  getAppTokenByMint,
+  getMintByAppToken,
+  PROGRAM,
+} from "../config";
+import {
+  PublicKey,
+  TransactionInstruction as Ix,
+  ParsedTransactionWithMeta,
+  Keypair,
+  SystemProgram,
+  SYSVAR_INSTRUCTIONS_PUBKEY,
+} from "@solana/web3.js";
+import {
+  dedupPubkey,
+  fetchMultipleAccountsFactory,
+  getActorsFactory,
+  getAta,
+  getOrCreateAtaIxs,
+  getSignersFactory,
+  getTokenProgramFactory,
+  handleTxFactory,
+  li,
+  logAndReturn,
+  numberFrom,
+  numberToRustBuffer,
+  withSenderFactory,
+} from "../utils";
+
+import * as IDbc from "../interfaces/dbc";
+import * as IADbc from "../interfaces/dbc.anchor";
+
+const { BN } = anchor;
+
+type DbcAccount<T extends keyof IdlAccounts<DynamicBondingCurve>> =
+  IdlAccounts<DynamicBondingCurve>[T];
+export type ClaimFeeOperatorAccount = DbcAccount<"claimFeeOperator">;
+
+export class DbcHelpers implements IHelpers {
+  private RENT_PROGRAM: PublicKey = anchor.web3.SYSVAR_RENT_PUBKEY;
+  private SYSTEM_PROGRAM: PublicKey = anchor.web3.SystemProgram.programId;
+  private ASSOCIATED_TOKEN_PROGRAM: PublicKey = spl.ASSOCIATED_TOKEN_PROGRAM_ID;
+
+  public defaultWallet: PublicKey;
+  public temporarySender?: Keypair;
+
+  public fetchMultipleAccounts: <
+    T extends keyof IdlAccounts<DynamicBondingCurve>
+  >(
+    accountName: T,
+    addresses: PublicKey[]
+  ) => Promise<IdlAccounts<DynamicBondingCurve>[T][]>;
+
+  private handleTx: (
+    signerList: Keypair[],
+    instructions: Ix[],
+    txSettings: TxSettings
+  ) => Promise<ParsedTransactionWithMeta | Ix[] | string>;
+
+  private getTokenProgram: (
+    mint: PublicKey,
+    isToken2022?: boolean
+  ) => Promise<PublicKey>;
+
+  public withSender: (sender: Keypair) => this;
+  private getActors: (txSettings: TxSettings) => [PublicKey, PublicKey];
+  private getSigners: (...additionalSigners: Keypair[]) => Keypair[];
+
+  constructor(
+    private provider: IBlockchainProvider,
+    private program: anchor.Program<DynamicBondingCurve>
+  ) {
+    this.defaultWallet = provider.wallet.publicKey;
+    this.program = program;
+    this.provider = provider;
+    this.fetchMultipleAccounts = fetchMultipleAccountsFactory(
+      provider,
+      program
+    );
+    this.handleTx = handleTxFactory(provider);
+    this.getTokenProgram = getTokenProgramFactory(provider);
+    this.withSender = withSenderFactory();
+    this.getActors = getActorsFactory();
+    this.getSigners = getSignersFactory();
+  }
+
+  pdaProgramData() {
+    return PublicKey.findProgramAddressSync(
+      [this.program.programId.toBuffer()],
+      BPF_LOADER_UPGRADEABLE
+    );
+  }
+}

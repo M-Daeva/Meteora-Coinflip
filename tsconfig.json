@@ -1,0 +1,21 @@
+{
+  "include": [
+    "./migrations",
+    "./scripts",
+    "./tests"
+  ],
+  "exclude": [
+    "./dist"
+  ],
+  "compilerOptions": {
+    "strict": true,
+    "resolveJsonModule": true,
+    "module": "commonjs",
+    "target": "es2020",
+    "esModuleInterop": true,
+    "lib": [
+      "ES2022",
+      "DOM"
+    ]
+  }
+}
