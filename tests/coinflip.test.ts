@@ -14,6 +14,7 @@ import { unpack as unpackTokenMetadata } from "@solana/spl-token-metadata";
 import * as spl from "@solana/spl-token";
 import { IBlockchainProvider } from "../scripts/common/account/provider";
 import { getKeypairFromSeed, li } from "../scripts/common/utils";
+import { BorshFeeTimeSchedulerAccount } from "../scripts/common/account/damm-v2";
 import {
   ExtensionType,
   getExtensionData,
@@ -33,7 +34,11 @@ const { BN } = anchor;
 const CLUSTER: Cluster = Cluster.Localnet;
 
 describe("Coinflip", () => {
-  const ROUNDS_LEN = 4;
+  const BASIS_POINT_MAX = 10_000;
+  const OFFSET = 64;
+  const U64_MAX = new BN("18446744073709551615");
+  const MIN_SQRT_PRICE = new BN("4295048016");
+  const MAX_SQRT_PRICE = new BN("79226673521066979257578248091");
 
   const user = new AppUser();
   const adminKeypair = user.getAdmin();
@@ -55,12 +60,6 @@ describe("Coinflip", () => {
     const quoteMint = getMintByAppToken(app.provider.cluster, AppToken.USDC);
 
     const [alice] = await user.rotateUsers(1);
-
-    const BASIS_POINT_MAX = 10_000;
-    const OFFSET = 64;
-    const U64_MAX = new BN("18446744073709551615");
-    const MIN_SQRT_PRICE = new BN("4295048016");
-    const MAX_SQRT_PRICE = new BN("79226673521066979257578248091");
 
     const sqrtStartPrice = MIN_SQRT_PRICE.shln(32);
     const cliffFeeNumerator = 20_000_000;
@@ -221,5 +220,60 @@ describe("Coinflip", () => {
       aliceBaseTokenBefore,
       aliceBaseTokenAfter,
     });
+  });
+
+  it("prepare damm", async () => {
+    const CREATE_CONFIG_KEY = 0;
+    const permission = new BN(1).shln(CREATE_CONFIG_KEY);
+    const index = new BN(0);
+
+    const [alice] = await user.rotateUsers(1);
+
+    await app.dammV2.tryCreateOperatorAccount(
+      adminKeypair.publicKey, // the address that will later call createConfig
+      permission,
+      { resultType: ResultType.BroadcastedTx }
+    );
+
+    const feeTimeScheduler: BorshFeeTimeSchedulerAccount = {
+      cliffFeeNumerator: new BN(2_500_000),
+      numberOfPeriod: 0,
+      reductionFactor: new BN(0),
+      periodFrequency: new BN(0),
+      baseFeeMode: 0,
+      padding: new Array(0).fill(0),
+    };
+
+    const baseFeeData = app.dammV2.program.coder.types.encode(
+      "borshFeeTimeScheduler",
+      feeTimeScheduler
+    );
+
+    await app.dammV2.tryCreateConfig(
+      index,
+      {
+        index,
+        configParameters: {
+          poolFees: {
+            baseFee: {
+              data: Array.from(baseFeeData),
+            },
+            compoundingFeeBps: 0,
+            padding: 0,
+            // dynamicFee: null,
+          },
+          sqrtMinPrice: new BN(MIN_SQRT_PRICE),
+          sqrtMaxPrice: new BN(MAX_SQRT_PRICE),
+          vaultConfigKey: PublicKey.default,
+          poolCreatorAuthority: adminKeypair.publicKey,
+          activationType: 1,
+          collectFeeMode: 0,
+          permission: new BN(0),
+        },
+      },
+      { resultType: ResultType.BroadcastedTx }
+    );
+
+    await app.dammV2.queryConfig(index, true);
   });
 });

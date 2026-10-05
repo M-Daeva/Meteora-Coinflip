@@ -10,7 +10,7 @@ export enum Cluster {
 }
 export const CLUSTER: Cluster = Cluster.Mainnet;
 
-export type ProgramName = "COINFLIP" | "DBC";
+export type ProgramName = "COINFLIP" | "DBC" | "DAMM_V2";
 export const networks = ["LOCALNET", "DEVNET", "MAINNET"] as const;
 
 // mainnet
@@ -22,6 +22,10 @@ export const PROGRAM = {
   DBC: {
     NAME: "dbc",
     PROGRAM_ID: new PublicKey("dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN"),
+  },
+  DAMM_V2: {
+    NAME: "damm_v2",
+    PROGRAM_ID: new PublicKey("cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG"),
   },
 };
 
