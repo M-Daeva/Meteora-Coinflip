@@ -126,27 +126,48 @@ export class AnchorTypeGenerator {
     if (!prop.name || !ts.isIdentifier(prop.name)) return null;
 
     const name = prop.name.text;
-    const isOptional = !!prop.questionToken;
     const type = this.typeChecker.getTypeAtLocation(prop);
-    let typeString = this.typeChecker.typeToString(type);
 
-    // Check if the original source text contains N<T> pattern
-    // since TypeScript resolves N<64> to just "number"
-    if (prop.type && typeString === "number") {
-      const sourceText = prop.type.getText();
-      if (sourceText.match(/N<\d+>/)) {
-        typeString = sourceText;
-      }
+    // Split `T | null | undefined` into T + nullability, using the source node
+    // (the checker drops null/undefined when strictNullChecks is off)
+    const { node: baseNode, nullable } = this.unwrapNullable(prop.type);
+    const isOptional = !!prop.questionToken || nullable;
+
+    let typeString = this.typeChecker.typeToString(
+      this.typeChecker.getNonNullableType(type)
+    );
+
+    // TypeScript resolves N<64> to plain "number", so prefer the source text
+    // whenever it contains N<…> (covers N<64>, N<8>[], Array<N<64>>, etc.)
+    if (baseNode && /\bN<\d+>/.test(baseNode.getText())) {
+      typeString = baseNode.getText();
     }
 
     return {
       name,
       type: typeString,
       isOptional,
-      isArray: this.isArrayType(type),
+      isArray: this.isArrayType(this.typeChecker.getNonNullableType(type)),
       isEnum: this.isEnumType(type),
       enumValues: this.getEnumValues(type),
     };
+  }
+
+  private unwrapNullable(node: ts.TypeNode | undefined): {
+    node: ts.TypeNode | undefined;
+    nullable: boolean;
+  } {
+    if (!node || !ts.isUnionTypeNode(node)) return { node, nullable: false };
+
+    const isNullish = (t: ts.TypeNode) =>
+      (ts.isLiteralTypeNode(t) &&
+        t.literal.kind === ts.SyntaxKind.NullKeyword) ||
+      t.kind === ts.SyntaxKind.UndefinedKeyword;
+
+    const rest = node.types.filter((t) => !isNullish(t));
+    const nullable = rest.length !== node.types.length;
+
+    return { node: rest.length === 1 ? rest[0] : node, nullable };
   }
 
   private extractFunctionInfo(
@@ -222,8 +243,8 @@ export class AnchorTypeGenerator {
 
     for (const prop of type.properties) {
       const anchorType = this.convertToAnchorType(prop);
-      const optional = prop.isOptional ? "?" : "";
-      output += `  ${prop.name}${optional}: ${anchorType};\n`;
+      const finalType = prop.isOptional ? `${anchorType} | null` : anchorType;
+      output += `  ${prop.name}: ${finalType};\n`;
     }
 
     output += `}\n\n`;
@@ -279,6 +300,8 @@ export class AnchorTypeGenerator {
         return "number";
 
       case "bigint":
+      case "BN":
+      case "anchor.BN":
         return "anchor.BN";
 
       case "string":
@@ -337,7 +360,7 @@ export class AnchorTypeGenerator {
 
   private getBaseType(typeString: string): string {
     // Remove optional markers and whitespace
-    let type = typeString.replace(/\s*\|\s*undefined/g, "").trim();
+    let type = typeString.replace(/\s*\|\s*(undefined|null)/g, "").trim();
 
     // Handle array types
     if (type.endsWith("[]")) {
@@ -373,6 +396,8 @@ export class AnchorTypeGenerator {
       "boolean",
       "bigint",
       "PublicKey",
+      "BN",
+      "anchor.BN",
     ];
     return (
       !primitiveTypes.includes(type) &&
@@ -492,7 +517,7 @@ export class AnchorTypeGenerator {
         prop,
         accessor
       );
-      return `${accessor} !== undefined ? ${innerConversion} : null`;
+      return `${accessor} != null ? ${innerConversion} : null`;
     }
 
     return this.generateNonOptionalConversion(prop, accessor);
@@ -566,6 +591,8 @@ export class AnchorTypeGenerator {
 
       case "PublicKey":
       case "boolean":
+      case "BN":
+      case "anchor.BN":
         return accessor;
 
       default:

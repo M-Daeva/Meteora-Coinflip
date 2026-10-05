@@ -1,5 +1,5 @@
 import CoinflipIdl from "../common/schema/idl/coinflip.json";
-import DbcIdl from "../common/schema/idl/dbc.json";
+import DbcIdl from "../common/schema/dbc/dynamic_bonding_curve.json";
 
 export function loadIdl() {
   return { CoinflipIdl, DbcIdl };

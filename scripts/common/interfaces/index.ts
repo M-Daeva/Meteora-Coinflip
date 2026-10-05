@@ -67,7 +67,7 @@ export type TxSettings = (
   executor?: PublicKey; // This ensures executor is always accessible
 };
 
-type D = 8 | 16 | 32 | 64;
+type D = 8 | 16 | 32 | 64 | 128;
 export type N<T extends D> = number;
 
 export type QuerySettings = {

@@ -43,6 +43,7 @@ const { BN } = anchor;
 type DbcAccount<T extends keyof IdlAccounts<DynamicBondingCurve>> =
   IdlAccounts<DynamicBondingCurve>[T];
 export type ClaimFeeOperatorAccount = DbcAccount<"claimFeeOperator">;
+export type PoolConfigAccount = DbcAccount<"poolConfig">;
 
 export class DbcHelpers implements IHelpers {
   private RENT_PROGRAM: PublicKey = anchor.web3.SYSVAR_RENT_PUBKEY;
@@ -90,6 +91,40 @@ export class DbcHelpers implements IHelpers {
     this.withSender = withSenderFactory();
     this.getActors = getActorsFactory();
     this.getSigners = getSignersFactory();
+  }
+
+  async tryCreateConfig(
+    configKp: Keypair,
+    args: IDbc.CreateConfigArgs,
+    txSettings: TxSettings = {}
+  ): Promise<ParsedTransactionWithMeta | Ix[] | string> {
+    const [_payer, sender] = this.getActors(txSettings);
+    const signerList = this.getSigners(configKp);
+
+    const usdc = getMintByAppToken(this.provider.cluster, AppToken.USDC);
+
+    const ix = await this.program.methods
+      .createConfig(...IADbc.convertCreateConfigArgs(args))
+      .accountsPartial({
+        config: configKp.publicKey,
+        feeClaimer: sender,
+        leftoverReceiver: sender,
+        quoteMint: usdc,
+        payer: sender,
+        systemProgram: this.SYSTEM_PROGRAM,
+        program: this.program.programId,
+      })
+      .instruction();
+
+    return this.handleTx(signerList, [ix], txSettings);
+  }
+
+  async queryPoolConfig(
+    config: PublicKey,
+    isDisplayed: boolean = false
+  ): Promise<PoolConfigAccount> {
+    const [res] = await this.fetchMultipleAccounts("poolConfig", [config]);
+    return logAndReturn(res, isDisplayed);
   }
 
   pdaProgramData() {
