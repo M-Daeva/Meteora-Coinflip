@@ -1,7 +1,7 @@
 // Auto-generated Anchor types and converters
 import * as anchor from '@coral-xyz/anchor';
 import { PublicKey } from '@solana/web3.js';
-import { CreateConfigArgs, ConfigParameters, PoolFee, BaseFee, DynamicFee, MigrationFee, MigratedPoolFee, MigratedPoolMarketCapFeeSchedulerParams, TokenSupplyParams, LockedVestingParams, LiquidityVestingInfoParams, LiquidityDistributionParameters, CreatePoolWithToken2022Args, InitializePoolParameters } from './dbc';
+import { CreateConfigArgs, ConfigParameters, PoolFee, BaseFee, DynamicFee, MigrationFee, MigratedPoolFee, MigratedPoolMarketCapFeeSchedulerParams, TokenSupplyParams, LockedVestingParams, LiquidityVestingInfoParams, LiquidityDistributionParameters, CreatePoolWithToken2022Args, InitializePoolParameters, SwapArgs, SwapParameters2 } from './dbc';
 
 // Anchor-generated types
 export type AnchorCreateConfigArgs = [
@@ -114,6 +114,16 @@ export interface AnchorInitializePoolParameters {
   name: string;
   symbol: string;
   uri: string;
+}
+
+export type AnchorSwapArgs = [
+  AnchorSwapParameters2
+];
+
+export interface AnchorSwapParameters2 {
+  amount0: anchor.BN;
+  amount1: anchor.BN;
+  swapMode: number;
 }
 
 
@@ -283,6 +293,24 @@ export function convertInitializePoolParameters(
     name: obj.name,
     symbol: obj.symbol,
     uri: obj.uri,
+  };
+}
+
+export function convertSwapArgs(
+  args: SwapArgs
+): AnchorSwapArgs {
+  return [
+    convertSwapParameters2(args.swapParameters2)
+  ];
+}
+
+export function convertSwapParameters2(
+  obj: SwapParameters2
+): AnchorSwapParameters2 {
+  return {
+    amount0: new anchor.BN(obj.amount0),
+    amount1: new anchor.BN(obj.amount1),
+    swapMode: obj.swapMode,
   };
 }
 

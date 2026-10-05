@@ -42,8 +42,8 @@ const { BN } = anchor;
 
 type DbcAccount<T extends keyof IdlAccounts<DynamicBondingCurve>> =
   IdlAccounts<DynamicBondingCurve>[T];
-export type ClaimFeeOperatorAccount = DbcAccount<"claimFeeOperator">;
 export type PoolConfigAccount = DbcAccount<"poolConfig">;
+export type VirtualPoolAccount = DbcAccount<"virtualPool">;
 
 export class DbcHelpers implements IHelpers {
   private RENT_PROGRAM: PublicKey = anchor.web3.SYSVAR_RENT_PUBKEY;
@@ -121,6 +121,7 @@ export class DbcHelpers implements IHelpers {
 
   async tryCreatePoolWithToken2022(
     baseMintKP: Keypair,
+    quoteMint: PublicKey,
     config: PublicKey,
     args: IDbc.CreatePoolWithToken2022Args,
     txSettings: TxSettings = {}
@@ -128,8 +129,7 @@ export class DbcHelpers implements IHelpers {
     const [_payer, sender] = this.getActors(txSettings);
     const signerList = this.getSigners(baseMintKP);
 
-    const quoteMint = getMintByAppToken(this.provider.cluster, AppToken.USDC);
-    const tokenQuoteProgram = await this.getTokenProgram(quoteMint, false);
+    const tokenQuoteProgram = await this.getTokenProgram(quoteMint);
 
     // PDA
     const [pool] = this.pdaPoolAddress(config, quoteMint, baseMintKP.publicKey);
@@ -159,11 +159,87 @@ export class DbcHelpers implements IHelpers {
     return this.handleTx(signerList, [ix], txSettings);
   }
 
+  async trySwap(
+    baseMint: PublicKey,
+    quoteMint: PublicKey,
+    config: PublicKey,
+    args: IDbc.SwapArgs,
+    txSettings: TxSettings = {}
+  ): Promise<ParsedTransactionWithMeta | Ix[] | string> {
+    const [_payer, sender] = this.getActors(txSettings);
+    const signerList = this.getSigners();
+
+    const [inputTokenProgram, outputTokenProgram] = await Promise.all([
+      this.getTokenProgram(quoteMint),
+      this.getTokenProgram(baseMint),
+    ]);
+
+    // PDA
+    const [pool] = this.pdaPoolAddress(config, quoteMint, baseMint);
+    const [baseVault] = this.pdaTokenVaultAddress(baseMint, pool);
+    const [quoteVault] = this.pdaTokenVaultAddress(quoteMint, pool);
+    const [poolAuthority] = this.pdaPoolAuthority();
+
+    // ATA
+    const { ixs: inputAtaIxs, ata: inputTokenAccount } =
+      await getOrCreateAtaIxs(
+        this.provider,
+        sender,
+        quoteMint,
+        sender,
+        inputTokenProgram
+      );
+    const { ixs: outputAtaIxs, ata: outputTokenAccount } =
+      await getOrCreateAtaIxs(
+        this.provider,
+        sender,
+        baseMint,
+        sender,
+        outputTokenProgram
+      );
+
+    const ix = await this.program.methods
+      .swap2(...IADbc.convertSwapArgs(args))
+      .accountsPartial({
+        pool,
+        poolAuthority,
+        payer: sender,
+        inputTokenAccount,
+        outputTokenAccount,
+        baseVault,
+        quoteVault,
+        config,
+        baseMint,
+        quoteMint,
+        tokenBaseProgram: outputTokenProgram,
+        tokenQuoteProgram: inputTokenProgram,
+        referralTokenAccount: null,
+      })
+      .instruction();
+
+    return this.handleTx(
+      signerList,
+      [...inputAtaIxs, ...outputAtaIxs, ix],
+      txSettings
+    );
+  }
+
   async queryPoolConfig(
     config: PublicKey,
     isDisplayed: boolean = false
   ): Promise<PoolConfigAccount> {
     const [res] = await this.fetchMultipleAccounts("poolConfig", [config]);
+    return logAndReturn(res, isDisplayed);
+  }
+
+  async queryVirtualPool(
+    config: PublicKey,
+    tokenAMint: PublicKey,
+    tokenBMint: PublicKey,
+    isDisplayed: boolean = false
+  ): Promise<VirtualPoolAccount> {
+    const [pda] = this.pdaPoolAddress(config, tokenAMint, tokenBMint);
+    const [res] = await this.fetchMultipleAccounts("virtualPool", [pda]);
     return logAndReturn(res, isDisplayed);
   }
 

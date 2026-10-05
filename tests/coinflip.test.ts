@@ -49,9 +49,12 @@ describe("Coinflip", () => {
     user.setChain(app.chain);
   });
 
-  it("create DBC config", async () => {
+  it("swap in virtual pool", async () => {
     const configKp = getKeypairFromSeed(2_000);
     const baseMintKP = getKeypairFromSeed(2_001);
+    const quoteMint = getMintByAppToken(app.provider.cluster, AppToken.USDC);
+
+    const [alice] = await user.rotateUsers(1);
 
     const BASIS_POINT_MAX = 10_000;
     const OFFSET = 64;
@@ -162,6 +165,7 @@ describe("Coinflip", () => {
 
     await app.dbc.tryCreatePoolWithToken2022(
       baseMintKP,
+      quoteMint,
       configKp.publicKey,
       {
         params: {
@@ -170,7 +174,52 @@ describe("Coinflip", () => {
           uri: "abc.com",
         },
       },
+      { resultType: ResultType.BroadcastedTx }
+    );
+
+    await app.dbc.queryVirtualPool(
+      configKp.publicKey,
+      baseMintKP.publicKey,
+      quoteMint
+    );
+
+    const aliceUsdcBefore = await app.chain.getAtaBalance(
+      alice.publicKey,
+      quoteMint
+    );
+    const aliceBaseTokenBefore = await app.chain.getAtaBalance(
+      alice.publicKey,
+      baseMintKP.publicKey
+    );
+
+    await app.dbc.withSender(alice).trySwap(
+      baseMintKP.publicKey,
+      quoteMint,
+      configKp.publicKey,
+      {
+        swapParameters2: {
+          swapMode: 0,
+          amount0: 1_000_000,
+          amount1: 0,
+        },
+      },
       { resultType: ResultType.BroadcastedTx, isDisplayed: true }
     );
+
+    const aliceUsdcAfter = await app.chain.getAtaBalance(
+      alice.publicKey,
+      quoteMint
+    );
+    const aliceBaseTokenAfter = await app.chain.getAtaBalance(
+      alice.publicKey,
+      baseMintKP.publicKey
+    );
+
+    li({
+      aliceUsdcBefore,
+      aliceUsdcAfter,
+      aliceBaseTokenBefore,
+      aliceBaseTokenAfter,
+    });
   });
 });

@@ -123,3 +123,16 @@ export interface InitializePoolParameters {
   symbol: string;
   uri: string;
 }
+
+export interface SwapArgs {
+  swapParameters2: SwapParameters2;
+}
+
+export interface SwapParameters2 {
+  // When it's exact in, partial fill, this will be amount_in. When it's exact out, this will be amount_out
+  amount0: N<64>;
+  // When it's exact in, partial fill, this will be minimum_amount_out. When it's exact out, this will be maximum_amount_in
+  amount1: N<64>;
+  // Swap mode, refer [ExactIn, PartialFill, ExactOut]
+  swapMode: N<8>;
+}
