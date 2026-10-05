@@ -119,6 +119,46 @@ export class DbcHelpers implements IHelpers {
     return this.handleTx(signerList, [ix], txSettings);
   }
 
+  async tryCreatePoolWithToken2022(
+    baseMintKP: Keypair,
+    config: PublicKey,
+    args: IDbc.CreatePoolWithToken2022Args,
+    txSettings: TxSettings = {}
+  ): Promise<ParsedTransactionWithMeta | Ix[] | string> {
+    const [_payer, sender] = this.getActors(txSettings);
+    const signerList = this.getSigners(baseMintKP);
+
+    const quoteMint = getMintByAppToken(this.provider.cluster, AppToken.USDC);
+    const tokenQuoteProgram = await this.getTokenProgram(quoteMint, false);
+
+    // PDA
+    const [pool] = this.pdaPoolAddress(config, quoteMint, baseMintKP.publicKey);
+    const [baseVault] = this.pdaTokenVaultAddress(baseMintKP.publicKey, pool);
+    const [quoteVault] = this.pdaTokenVaultAddress(quoteMint, pool);
+    const [poolAuthority] = this.pdaPoolAuthority();
+
+    const ix = await this.program.methods
+      .initializeVirtualPoolWithToken2022(
+        ...IADbc.convertCreatePoolWithToken2022Args(args)
+      )
+      .accountsPartial({
+        config,
+        baseMint: baseMintKP.publicKey,
+        quoteMint,
+        pool,
+        payer: sender,
+        creator: sender,
+        poolAuthority,
+        baseVault,
+        quoteVault,
+        tokenQuoteProgram,
+        tokenProgram: spl.TOKEN_2022_PROGRAM_ID,
+      })
+      .instruction();
+
+    return this.handleTx(signerList, [ix], txSettings);
+  }
+
   async queryPoolConfig(
     config: PublicKey,
     isDisplayed: boolean = false
@@ -133,4 +173,54 @@ export class DbcHelpers implements IHelpers {
       BPF_LOADER_UPGRADEABLE
     );
   }
+
+  pdaPoolAddress(
+    config: PublicKey,
+    tokenAMint: PublicKey,
+    tokenBMint: PublicKey
+  ) {
+    return PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("pool"),
+        config.toBuffer(),
+        getFirstKey(tokenAMint, tokenBMint),
+        getSecondKey(tokenAMint, tokenBMint),
+      ],
+      PROGRAM.DBC.PROGRAM_ID
+    );
+  }
+
+  pdaTokenVaultAddress(tokenMint: PublicKey, pool: PublicKey) {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("token_vault"), tokenMint.toBuffer(), pool.toBuffer()],
+      PROGRAM.DBC.PROGRAM_ID
+    );
+  }
+
+  pdaPoolAuthority() {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("pool_authority")],
+      PROGRAM.DBC.PROGRAM_ID
+    );
+  }
+}
+
+export function getFirstKey(key1: PublicKey, key2: PublicKey) {
+  const buf1 = key1.toBuffer();
+  const buf2 = key2.toBuffer();
+  // Buf1 > buf2
+  if (Buffer.compare(buf1, buf2) === 1) {
+    return buf1;
+  }
+  return buf2;
+}
+
+export function getSecondKey(key1: PublicKey, key2: PublicKey) {
+  const buf1 = key1.toBuffer();
+  const buf2 = key2.toBuffer();
+  // Buf1 > buf2
+  if (Buffer.compare(buf1, buf2) === 1) {
+    return buf2;
+  }
+  return buf1;
 }

@@ -113,3 +113,13 @@ export interface LiquidityDistributionParameters {
   sqrtPrice: BN;
   liquidity: BN;
 }
+
+export interface CreatePoolWithToken2022Args {
+  params: InitializePoolParameters;
+}
+
+export interface InitializePoolParameters {
+  name: string;
+  symbol: string;
+  uri: string;
+}

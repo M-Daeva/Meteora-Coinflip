@@ -51,6 +51,7 @@ describe("Coinflip", () => {
 
   it("create DBC config", async () => {
     const configKp = getKeypairFromSeed(2_000);
+    const baseMintKP = getKeypairFromSeed(2_001);
 
     const BASIS_POINT_MAX = 10_000;
     const OFFSET = 64;
@@ -98,7 +99,7 @@ describe("Coinflip", () => {
           activationType: 0,
           collectFeeMode: 0,
           migrationOption: 1, // damm v2
-          tokenType: 0, // spl_token
+          tokenType: 1, // token-2022
           tokenDecimal: 6,
           migrationQuoteThreshold: LAMPORTS_PER_SOL * 5,
           partnerLiquidityPercentage: 20,
@@ -158,5 +159,18 @@ describe("Coinflip", () => {
     );
 
     await app.dbc.queryPoolConfig(configKp.publicKey);
+
+    await app.dbc.tryCreatePoolWithToken2022(
+      baseMintKP,
+      configKp.publicKey,
+      {
+        params: {
+          name: "test token-2022",
+          symbol: "TEST",
+          uri: "abc.com",
+        },
+      },
+      { resultType: ResultType.BroadcastedTx, isDisplayed: true }
+    );
   });
 });

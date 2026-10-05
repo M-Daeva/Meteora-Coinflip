@@ -1,7 +1,7 @@
 // Auto-generated Anchor types and converters
 import * as anchor from '@coral-xyz/anchor';
 import { PublicKey } from '@solana/web3.js';
-import { CreateConfigArgs, ConfigParameters, PoolFee, BaseFee, DynamicFee, MigrationFee, MigratedPoolFee, MigratedPoolMarketCapFeeSchedulerParams, TokenSupplyParams, LockedVestingParams, LiquidityVestingInfoParams, LiquidityDistributionParameters } from './dbc';
+import { CreateConfigArgs, ConfigParameters, PoolFee, BaseFee, DynamicFee, MigrationFee, MigratedPoolFee, MigratedPoolMarketCapFeeSchedulerParams, TokenSupplyParams, LockedVestingParams, LiquidityVestingInfoParams, LiquidityDistributionParameters, CreatePoolWithToken2022Args, InitializePoolParameters } from './dbc';
 
 // Anchor-generated types
 export type AnchorCreateConfigArgs = [
@@ -104,6 +104,16 @@ export interface AnchorLiquidityVestingInfoParams {
 export interface AnchorLiquidityDistributionParameters {
   sqrtPrice: anchor.BN;
   liquidity: anchor.BN;
+}
+
+export type AnchorCreatePoolWithToken2022Args = [
+  AnchorInitializePoolParameters
+];
+
+export interface AnchorInitializePoolParameters {
+  name: string;
+  symbol: string;
+  uri: string;
 }
 
 
@@ -255,6 +265,24 @@ export function convertLiquidityDistributionParameters(
   return {
     sqrtPrice: obj.sqrtPrice,
     liquidity: obj.liquidity,
+  };
+}
+
+export function convertCreatePoolWithToken2022Args(
+  args: CreatePoolWithToken2022Args
+): AnchorCreatePoolWithToken2022Args {
+  return [
+    convertInitializePoolParameters(args.params)
+  ];
+}
+
+export function convertInitializePoolParameters(
+  obj: InitializePoolParameters
+): AnchorInitializePoolParameters {
+  return {
+    name: obj.name,
+    symbol: obj.symbol,
+    uri: obj.uri,
   };
 }
 
