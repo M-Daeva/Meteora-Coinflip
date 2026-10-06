@@ -47,6 +47,8 @@ describe("Coinflip", () => {
 
   let app: App;
   let token: Record<AppToken, PublicKey>;
+  // dbc config
+  let configKp: anchor.web3.Keypair = Keypair.generate(); // default
 
   beforeAll(async () => {
     app = await initApp(CLUSTER, adminKeypair);
@@ -55,7 +57,7 @@ describe("Coinflip", () => {
   });
 
   it("swap in virtual pool", async () => {
-    const configKp = getKeypairFromSeed(2_000);
+    configKp = getKeypairFromSeed(2_000);
     const baseMintKP = getKeypairFromSeed(2_001);
     const quoteMint = getMintByAppToken(app.provider.cluster, AppToken.USDC);
 
@@ -202,7 +204,7 @@ describe("Coinflip", () => {
           amount1: 0,
         },
       },
-      { resultType: ResultType.BroadcastedTx, isDisplayed: true }
+      { resultType: ResultType.BroadcastedTx }
     );
 
     const aliceUsdcAfter = await app.chain.getAtaBalance(
@@ -226,6 +228,9 @@ describe("Coinflip", () => {
     const CREATE_CONFIG_KEY = 0;
     const permission = new BN(1).shln(CREATE_CONFIG_KEY);
     const index = new BN(0);
+
+    const baseMint = getKeypairFromSeed(2_001).publicKey;
+    const quoteMint = getMintByAppToken(app.provider.cluster, AppToken.USDC);
 
     const [alice] = await user.rotateUsers(1);
 
@@ -274,6 +279,20 @@ describe("Coinflip", () => {
       { resultType: ResultType.BroadcastedTx }
     );
 
-    await app.dammV2.queryConfig(index, true);
+    await app.dammV2.queryConfig(index);
+
+    await app.dbc.tryCreateMeteoraDammV2Metadata(
+      baseMint,
+      quoteMint,
+      configKp.publicKey,
+      { resultType: ResultType.BroadcastedTx, isDisplayed: true }
+    );
+
+    // await app.dbc.queryDammMigrationMetadata(
+    //   configKp.publicKey,
+    //   baseMint,
+    //   quoteMint,
+    //   true
+    // );
   });
 });

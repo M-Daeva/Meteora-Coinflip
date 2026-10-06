@@ -44,6 +44,8 @@ type DbcAccount<T extends keyof IdlAccounts<DynamicBondingCurve>> =
   IdlAccounts<DynamicBondingCurve>[T];
 export type PoolConfigAccount = DbcAccount<"poolConfig">;
 export type VirtualPoolAccount = DbcAccount<"virtualPool">;
+export type DammMigrationMetadataAccount =
+  DbcAccount<"meteoraDammMigrationMetadata">;
 
 export class DbcHelpers implements IHelpers {
   private RENT_PROGRAM: PublicKey = anchor.web3.SYSVAR_RENT_PUBKEY;
@@ -224,6 +226,34 @@ export class DbcHelpers implements IHelpers {
     );
   }
 
+  async tryCreateMeteoraDammV2Metadata(
+    baseMint: PublicKey,
+    quoteMint: PublicKey,
+    config: PublicKey,
+    txSettings: TxSettings = {}
+  ): Promise<ParsedTransactionWithMeta | Ix[] | string> {
+    const [_payer, sender] = this.getActors(txSettings);
+    const signerList = this.getSigners();
+
+    // PDA
+    const [virtualPool] = this.pdaPoolAddress(config, quoteMint, baseMint);
+    const [migrationMetadata] =
+      this.pdaMigrationDammV2MetadataAddress(virtualPool);
+
+    const ix = await this.program.methods
+      .migrationDammV2CreateMetadata()
+      .accountsPartial({
+        virtualPool,
+        config,
+        migrationMetadata,
+        payer: sender,
+        systemProgram: this.SYSTEM_PROGRAM,
+      })
+      .instruction();
+
+    return this.handleTx(signerList, [ix], txSettings);
+  }
+
   async queryPoolConfig(
     config: PublicKey,
     isDisplayed: boolean = false
@@ -240,6 +270,21 @@ export class DbcHelpers implements IHelpers {
   ): Promise<VirtualPoolAccount> {
     const [pda] = this.pdaPoolAddress(config, tokenAMint, tokenBMint);
     const [res] = await this.fetchMultipleAccounts("virtualPool", [pda]);
+    return logAndReturn(res, isDisplayed);
+  }
+
+  async queryDammMigrationMetadata(
+    config: PublicKey,
+    tokenAMint: PublicKey,
+    tokenBMint: PublicKey,
+    isDisplayed: boolean = false
+  ): Promise<DammMigrationMetadataAccount> {
+    const [virtualPool] = this.pdaPoolAddress(config, tokenAMint, tokenBMint);
+    const [pda] = this.pdaMigrationDammV2MetadataAddress(virtualPool);
+    const [res] = await this.fetchMultipleAccounts(
+      "meteoraDammMigrationMetadata",
+      [pda]
+    );
     return logAndReturn(res, isDisplayed);
   }
 
@@ -276,6 +321,13 @@ export class DbcHelpers implements IHelpers {
   pdaPoolAuthority() {
     return PublicKey.findProgramAddressSync(
       [Buffer.from("pool_authority")],
+      PROGRAM.DBC.PROGRAM_ID
+    );
+  }
+
+  pdaMigrationDammV2MetadataAddress(virtualPool: PublicKey) {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("damm_v2"), virtualPool.toBuffer()],
       PROGRAM.DBC.PROGRAM_ID
     );
   }
