@@ -3,31 +3,11 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { ResultType } from "../scripts/common/interfaces";
 import { initApp, shouldFailAsync } from "./litesvm-suite";
 import { AppUser } from "../scripts/common/config/litesvm";
-import {
-  AccountInfo,
-  Keypair,
-  LAMPORTS_PER_SOL,
-  PublicKey,
-} from "@solana/web3.js";
+import { Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { App } from "../scripts/common/account";
-import { unpack as unpackTokenMetadata } from "@solana/spl-token-metadata";
-import * as spl from "@solana/spl-token";
-import { IBlockchainProvider } from "../scripts/common/account/provider";
 import { getKeypairFromSeed, li } from "../scripts/common/utils";
 import { BorshFeeTimeSchedulerAccount } from "../scripts/common/account/damm-v2";
-import {
-  ExtensionType,
-  getExtensionData,
-  getExtensionTypes,
-  getMetadataPointerState,
-  unpackMint,
-} from "@solana/spl-token";
-import {
-  AppToken,
-  Cluster,
-  getMintByAppToken,
-  PROGRAM,
-} from "../scripts/common/config";
+import { AppToken, Cluster, getMintByAppToken } from "../scripts/common/config";
 
 const { BN } = anchor;
 
@@ -287,12 +267,5 @@ describe("Coinflip", () => {
       configKp.publicKey,
       { resultType: ResultType.BroadcastedTx, isDisplayed: true }
     );
-
-    // await app.dbc.queryDammMigrationMetadata(
-    //   configKp.publicKey,
-    //   baseMint,
-    //   quoteMint,
-    //   true
-    // );
   });
 });

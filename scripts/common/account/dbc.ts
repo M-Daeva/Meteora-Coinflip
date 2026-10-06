@@ -1,44 +1,32 @@
 import * as anchor from "@coral-xyz/anchor";
 import * as spl from "@solana/spl-token";
 import { DynamicBondingCurve } from "../schema/dbc/dynamic_bonding_curve";
-import { IHelpers, ResultType, TxSettings } from "../interfaces";
+import { IHelpers, TxSettings } from "../interfaces";
 import { BPF_LOADER_UPGRADEABLE, IBlockchainProvider } from "./provider";
 import { IdlAccounts } from "@coral-xyz/anchor";
-import {
-  AppToken,
-  Cluster,
-  getAppTokenByMint,
-  getMintByAppToken,
-  PROGRAM,
-} from "../config";
+import { AppToken, getMintByAppToken, PROGRAM } from "../config";
+import { getFirstKey, getSecondKey } from "./utils";
+import { DammV2Helpers } from "./damm-v2";
 import {
   PublicKey,
   TransactionInstruction as Ix,
   ParsedTransactionWithMeta,
   Keypair,
-  SystemProgram,
-  SYSVAR_INSTRUCTIONS_PUBKEY,
+  AccountMeta,
 } from "@solana/web3.js";
 import {
-  dedupPubkey,
   fetchMultipleAccountsFactory,
   getActorsFactory,
-  getAta,
   getOrCreateAtaIxs,
   getSignersFactory,
   getTokenProgramFactory,
   handleTxFactory,
-  li,
   logAndReturn,
-  numberFrom,
-  numberToRustBuffer,
   withSenderFactory,
 } from "../utils";
 
 import * as IDbc from "../interfaces/dbc";
 import * as IADbc from "../interfaces/dbc.anchor";
-
-const { BN } = anchor;
 
 type DbcAccount<T extends keyof IdlAccounts<DynamicBondingCurve>> =
   IdlAccounts<DynamicBondingCurve>[T];
@@ -254,6 +242,106 @@ export class DbcHelpers implements IHelpers {
     return this.handleTx(signerList, [ix], txSettings);
   }
 
+  async tryMigrateToDammV2(
+    dammV2Helpers: DammV2Helpers,
+    firstPositionNftKP: Keypair,
+    secondPositionNftKP: Keypair,
+    baseMint: PublicKey,
+    quoteMint: PublicKey,
+    config: PublicKey,
+    dammConfig: PublicKey,
+    txSettings: TxSettings = {}
+  ): Promise<ParsedTransactionWithMeta | Ix[] | string> {
+    const [_payer, sender] = this.getActors(txSettings);
+    const signerList = this.getSigners(firstPositionNftKP, secondPositionNftKP);
+
+    // DBC state
+    const [virtualPool] = this.pdaPoolAddress(config, quoteMint, baseMint);
+    const [virtualPoolState, configState] = await Promise.all([
+      this.queryVirtualPool(config, baseMint, quoteMint),
+      this.queryPoolConfig(config),
+    ]);
+
+    const [poolAuthority] = this.pdaPoolAuthority();
+    const [migrationMetadata] =
+      this.pdaMigrationDammV2MetadataAddress(virtualPool);
+
+    // DAMM v2 PDAs
+    const [dammPool] = dammV2Helpers.pdaDammV2PoolAddress(
+      dammConfig,
+      virtualPoolState.poolState.baseMint,
+      configState.quoteMint
+    );
+    const [firstPosition] = dammV2Helpers.pdaDammV2Position(
+      firstPositionNftKP.publicKey
+    );
+    const [firstPositionNftAccount] = dammV2Helpers.pdaDammV2PositionNftAccount(
+      firstPositionNftKP.publicKey
+    );
+    const [secondPosition] = dammV2Helpers.pdaDammV2Position(
+      secondPositionNftKP.publicKey
+    );
+    const [secondPositionNftAccount] =
+      dammV2Helpers.pdaDammV2PositionNftAccount(secondPositionNftKP.publicKey);
+    const [dammPoolAuthority] = dammV2Helpers.pdaDammV2PoolAuthority();
+    const [dammEventAuthority] = dammV2Helpers.pdaDammV2EventAuthority();
+    const [tokenAVault] = dammV2Helpers.pdaDammV2TokenVault(
+      virtualPoolState.poolState.baseMint,
+      dammPool
+    );
+    const [tokenBVault] = dammV2Helpers.pdaDammV2TokenVault(
+      configState.quoteMint,
+      dammPool
+    );
+
+    const tokenBaseProgram =
+      configState.tokenType === 0
+        ? spl.TOKEN_PROGRAM_ID
+        : spl.TOKEN_2022_PROGRAM_ID;
+    const tokenQuoteProgram =
+      configState.quoteTokenFlag === 0
+        ? spl.TOKEN_PROGRAM_ID
+        : spl.TOKEN_2022_PROGRAM_ID;
+
+    const remainingAccounts: AccountMeta[] = [
+      { pubkey: dammConfig, isSigner: false, isWritable: false },
+    ];
+
+    const ix = await this.program.methods
+      .migrationDammV2()
+      .accountsStrict({
+        virtualPool,
+        migrationMetadata,
+        config,
+        poolAuthority,
+        pool: dammPool,
+        firstPositionNftMint: firstPositionNftKP.publicKey,
+        firstPosition,
+        firstPositionNftAccount,
+        secondPositionNftMint: secondPositionNftKP.publicKey,
+        secondPosition,
+        secondPositionNftAccount,
+        dammPoolAuthority,
+        ammProgram: PROGRAM.DAMM_V2.PROGRAM_ID,
+        baseMint: virtualPoolState.poolState.baseMint,
+        quoteMint: configState.quoteMint,
+        tokenAVault,
+        tokenBVault,
+        baseVault: virtualPoolState.poolState.baseMint,
+        quoteVault: virtualPoolState.poolState.quoteVault,
+        payer: sender,
+        tokenBaseProgram,
+        tokenQuoteProgram,
+        token2022Program: spl.TOKEN_2022_PROGRAM_ID,
+        systemProgram: this.SYSTEM_PROGRAM,
+        dammEventAuthority,
+      })
+      .remainingAccounts(remainingAccounts)
+      .instruction();
+
+    return this.handleTx(signerList, [ix], txSettings);
+  }
+
   async queryPoolConfig(
     config: PublicKey,
     isDisplayed: boolean = false
@@ -331,24 +419,4 @@ export class DbcHelpers implements IHelpers {
       PROGRAM.DBC.PROGRAM_ID
     );
   }
-}
-
-export function getFirstKey(key1: PublicKey, key2: PublicKey) {
-  const buf1 = key1.toBuffer();
-  const buf2 = key2.toBuffer();
-  // Buf1 > buf2
-  if (Buffer.compare(buf1, buf2) === 1) {
-    return buf1;
-  }
-  return buf2;
-}
-
-export function getSecondKey(key1: PublicKey, key2: PublicKey) {
-  const buf1 = key1.toBuffer();
-  const buf2 = key2.toBuffer();
-  // Buf1 > buf2
-  if (Buffer.compare(buf1, buf2) === 1) {
-    return buf2;
-  }
-  return buf1;
 }
