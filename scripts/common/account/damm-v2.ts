@@ -15,6 +15,7 @@ import {
 import {
   fetchMultipleAccountsFactory,
   getActorsFactory,
+  getOrCreateAtaIxs,
   getSignersFactory,
   getTokenProgramFactory,
   handleTxFactory,
@@ -33,6 +34,7 @@ type DammV2Account<T extends keyof IdlAccounts<DammV2>> =
 export type ConfigAccount = DammV2Account<"config">;
 export type BorshFeeTimeSchedulerAccount =
   DammV2Account<"podAlignedFeeTimeScheduler">;
+export type PoolAccount = DammV2Account<"pool">;
 
 export class DammV2Helpers implements IHelpers {
   private RENT_PROGRAM: PublicKey = anchor.web3.SYSVAR_RENT_PUBKEY;
@@ -154,12 +156,90 @@ export class DammV2Helpers implements IHelpers {
     return this.handleTx(signerList, [ix], txSettings);
   }
 
+  async trySwap(
+    pool: PublicKey,
+    inputMint: PublicKey,
+    args: IDammV2.SwapV2Args,
+    txSettings: TxSettings = {}
+  ): Promise<ParsedTransactionWithMeta | Ix[] | string> {
+    const [_payer, sender] = this.getActors(txSettings);
+    const signerList = this.getSigners();
+
+    const poolState = await this.queryPool(pool);
+    const { tokenAMint, tokenBMint, tokenAVault, tokenBVault } = poolState;
+
+    const isAToB = inputMint.equals(tokenAMint);
+    if (!isAToB && !inputMint.equals(tokenBMint)) {
+      throw new Error("inputMint is not part of the pool");
+    }
+    const outputMint = isAToB ? tokenBMint : tokenAMint;
+
+    const [tokenAProgram, tokenBProgram] = await Promise.all([
+      this.getTokenProgram(tokenAMint),
+      this.getTokenProgram(tokenBMint),
+    ]);
+    const inputTokenProgram = isAToB ? tokenAProgram : tokenBProgram;
+    const outputTokenProgram = isAToB ? tokenBProgram : tokenAProgram;
+
+    // ATA
+    const { ixs: inputAtaIxs, ata: inputTokenAccount } =
+      await getOrCreateAtaIxs(
+        this.provider,
+        sender,
+        inputMint,
+        sender,
+        inputTokenProgram
+      );
+    const { ixs: outputAtaIxs, ata: outputTokenAccount } =
+      await getOrCreateAtaIxs(
+        this.provider,
+        sender,
+        outputMint,
+        sender,
+        outputTokenProgram
+      );
+
+    const [poolAuthority] = this.pdaDammV2PoolAuthority();
+
+    const ix = await this.program.methods
+      .swap2(...IADammV2.convertSwapV2Args(args))
+      .accountsPartial({
+        poolAuthority,
+        pool,
+        inputTokenAccount,
+        outputTokenAccount,
+        tokenAVault,
+        tokenBVault,
+        tokenAMint,
+        tokenBMint,
+        payer: sender,
+        tokenAProgram,
+        tokenBProgram,
+        referralTokenAccount: null,
+      })
+      .instruction();
+
+    return this.handleTx(
+      signerList,
+      [...inputAtaIxs, ...outputAtaIxs, ix],
+      txSettings
+    );
+  }
+
   async queryConfig(
     index: BNType,
     isDisplayed: boolean = false
   ): Promise<ConfigAccount> {
     const [pda] = this.pdaConfig(index);
     const [res] = await this.fetchMultipleAccounts("config", [pda]);
+    return logAndReturn(res, isDisplayed);
+  }
+
+  async queryPool(
+    pool: PublicKey,
+    isDisplayed: boolean = false
+  ): Promise<PoolAccount> {
+    const [res] = await this.fetchMultipleAccounts("pool", [pool]);
     return logAndReturn(res, isDisplayed);
   }
 

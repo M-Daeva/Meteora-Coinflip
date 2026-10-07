@@ -1,7 +1,7 @@
 // Auto-generated Anchor types and converters
 import * as anchor from '@coral-xyz/anchor';
 import { PublicKey } from '@solana/web3.js';
-import { CreateConfigArgs, StaticConfigParameters, CreateDynamicConfigArgs, DynamicConfigParameters, PoolFeeParameters, BaseFeeParameters, DynamicFeeParameters } from './damm-v2';
+import { CreateConfigArgs, StaticConfigParameters, CreateDynamicConfigArgs, DynamicConfigParameters, PoolFeeParameters, BaseFeeParameters, DynamicFeeParameters, SwapV2Args, SwapParameters2 } from './damm-v2';
 
 // Anchor-generated types
 export type AnchorCreateConfigArgs = [
@@ -49,6 +49,16 @@ export interface AnchorDynamicFeeParameters {
   reductionFactor: number;
   maxVolatilityAccumulator: number;
   variableFeeControl: number;
+}
+
+export type AnchorSwapV2Args = [
+  AnchorSwapParameters2
+];
+
+export interface AnchorSwapParameters2 {
+  amount0: anchor.BN;
+  amount1: anchor.BN;
+  swapMode: number;
 }
 
 
@@ -125,6 +135,24 @@ export function convertDynamicFeeParameters(
     reductionFactor: obj.reductionFactor,
     maxVolatilityAccumulator: obj.maxVolatilityAccumulator,
     variableFeeControl: obj.variableFeeControl,
+  };
+}
+
+export function convertSwapV2Args(
+  args: SwapV2Args
+): AnchorSwapV2Args {
+  return [
+    convertSwapParameters2(args.params)
+  ];
+}
+
+export function convertSwapParameters2(
+  obj: SwapParameters2
+): AnchorSwapParameters2 {
+  return {
+    amount0: obj.amount0,
+    amount1: obj.amount1,
+    swapMode: obj.swapMode,
   };
 }
 

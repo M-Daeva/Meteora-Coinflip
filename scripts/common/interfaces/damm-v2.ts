@@ -52,3 +52,13 @@ export interface DynamicFeeParameters {
   maxVolatilityAccumulator: N<32>;
   variableFeeControl: N<32>;
 }
+
+export interface SwapV2Args {
+  params: SwapParameters2;
+}
+
+export interface SwapParameters2 {
+  amount0: BN;
+  amount1: BN;
+  swapMode: number;
+}

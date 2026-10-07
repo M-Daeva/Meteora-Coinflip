@@ -31,7 +31,10 @@ describe("Coinflip", () => {
     user.setChain(app.chain);
   });
 
-  it("full flow", async () => {
+  it("swap before and after migration", async () => {
+    const AMOUNT_TO_SWAP_BEFORE_MIGRATION = 6_000_000;
+    const AMOUNT_TO_SWAP_AFTER_MIGRATION = 1_000_000;
+
     const configKp = getKeypairFromSeed(2_000);
     const baseMintKP = getKeypairFromSeed(2_001);
     const quoteMint = getMintByAppToken(app.provider.cluster, AppToken.USDC);
@@ -182,6 +185,15 @@ describe("Coinflip", () => {
 
     // --- swap in virtual pool ---
 
+    let aliceUsdcBefore = await app.chain.getAtaBalance(
+      alice.publicKey,
+      quoteMint
+    );
+    let aliceBaseBefore = await app.chain.getAtaBalance(
+      alice.publicKey,
+      baseMintKP.publicKey
+    );
+
     await app.dbc.withSender(alice).trySwap(
       baseMintKP.publicKey,
       quoteMint,
@@ -189,14 +201,27 @@ describe("Coinflip", () => {
       {
         swapParameters2: {
           swapMode: 1, // partial fill
-          amount0: 6_000_000,
+          amount0: AMOUNT_TO_SWAP_BEFORE_MIGRATION,
           amount1: 0,
         },
       },
       { resultType: ResultType.BroadcastedTx }
     );
 
+    let aliceUsdcAfter = await app.chain.getAtaBalance(
+      alice.publicKey,
+      quoteMint
+    );
+    let aliceBaseAfter = await app.chain.getAtaBalance(
+      alice.publicKey,
+      baseMintKP.publicKey
+    );
+
+    expect(aliceUsdcBefore - aliceUsdcAfter).toBe(5_102_041);
+    expect(aliceBaseAfter - aliceBaseBefore).toBe(4_988_198);
+
     // --- migrate ---
+
     await app.dbc.tryCreateMeteoraDammV2Metadata(
       baseMintKP.publicKey,
       quoteMint,
@@ -214,7 +239,45 @@ describe("Coinflip", () => {
       quoteMint,
       configKp.publicKey,
       dammConfig,
-      { resultType: ResultType.BroadcastedTx, isDisplayed: true }
+      { resultType: ResultType.BroadcastedTx }
     );
+
+    // --- swap in DAMM pool ---
+
+    const [dammPool] = app.dammV2.pdaDammV2PoolAddress(
+      dammConfig,
+      baseMintKP.publicKey,
+      quoteMint
+    );
+
+    aliceUsdcBefore = await app.chain.getAtaBalance(alice.publicKey, quoteMint);
+    aliceBaseBefore = await app.chain.getAtaBalance(
+      alice.publicKey,
+      baseMintKP.publicKey
+    );
+
+    await app.dammV2.withSender(alice).trySwap(
+      dammPool,
+      quoteMint,
+      {
+        params: {
+          amount0: new BN(AMOUNT_TO_SWAP_AFTER_MIGRATION),
+          amount1: new BN(0),
+          swapMode: 0,
+        },
+      },
+      { resultType: ResultType.BroadcastedTx }
+    );
+
+    aliceUsdcAfter = await app.chain.getAtaBalance(alice.publicKey, quoteMint);
+    aliceBaseAfter = await app.chain.getAtaBalance(
+      alice.publicKey,
+      baseMintKP.publicKey
+    );
+
+    expect(aliceUsdcBefore - aliceUsdcAfter).toBe(
+      AMOUNT_TO_SWAP_AFTER_MIGRATION
+    );
+    expect(aliceBaseAfter - aliceBaseBefore).toBe(822_239);
   });
 });
