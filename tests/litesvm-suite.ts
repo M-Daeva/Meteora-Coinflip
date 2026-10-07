@@ -285,19 +285,20 @@ export async function initApp(
   programsToMigrate: string[] = []
 ): Promise<App> {
   // @generated:start:initApp-body
-  const { CoinflipIdl, DbcIdl, DammV2Idl } = loadIdl();
+  const { CoinflipIdl, DbcIdl, DammV2Idl, OraoVrfIdl } = loadIdl();
   const anchorProvider = getAnchorProvider(cluster, adminKeypair);
   const provider =
     cluster === Cluster.Localnet
       ? getLiteSvmProvider(adminKeypair)
       : createProvider({ type: "real", provider: anchorProvider });
 
-  const { chain, coinflip, dbc, dammV2 } = getHelperSet(
+  const { chain, coinflip, dbc, dammV2, oraoVrf } = getHelperSet(
     provider,
     anchorProvider,
     CoinflipIdl,
     DbcIdl,
-    DammV2Idl
+    DammV2Idl,
+    OraoVrfIdl
   );
 
   if (provider instanceof LiteSvmProvider) {
@@ -315,6 +316,7 @@ export async function initApp(
     coinflip,
     dbc,
     dammV2,
+    oraoVrf,
     token: getTokenPubkeySet(cluster),
   };
   // @generated:end:initApp-body

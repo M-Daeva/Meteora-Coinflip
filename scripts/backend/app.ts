@@ -40,6 +40,8 @@ const CLUSTER: Cluster = Cluster.Mainnet;
 async function main() {
   const ownerKeypair = await readKeypair(rootPath(PATH.OWNER_KEYPAIR));
   const app = await initApp(CLUSTER, ownerKeypair);
+
+  await app.oraoVrf.queryNetworkState(true);
 }
 
 main();

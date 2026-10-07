@@ -10,7 +10,7 @@ export enum Cluster {
 }
 export const CLUSTER: Cluster = Cluster.Mainnet;
 
-export type ProgramName = "COINFLIP" | "DBC" | "DAMM_V2";
+export type ProgramName = "COINFLIP" | "DBC" | "DAMM_V2" | "ORAO_VRF";
 export const networks = ["LOCALNET", "DEVNET", "MAINNET"] as const;
 
 // mainnet
@@ -26,6 +26,10 @@ export const PROGRAM = {
   DAMM_V2: {
     NAME: "damm_v2",
     PROGRAM_ID: new PublicKey("cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG"),
+  },
+  ORAO_VRF: {
+    NAME: "orao_vrf",
+    PROGRAM_ID: new PublicKey("VRFzZoJdhFWL8rkvu87LpKM3RbcVezpMEc6X5GVDr7y"),
   },
 };
 
