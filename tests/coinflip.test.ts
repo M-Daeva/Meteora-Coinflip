@@ -6,7 +6,6 @@ import { AppUser } from "../scripts/common/config/litesvm";
 import { Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { App } from "../scripts/common/account";
 import { getKeypairFromSeed, li } from "../scripts/common/utils";
-import { BorshFeeTimeSchedulerAccount } from "../scripts/common/account/damm-v2";
 import { AppToken, Cluster, getMintByAppToken } from "../scripts/common/config";
 
 const { BN } = anchor;
@@ -14,8 +13,6 @@ const { BN } = anchor;
 const CLUSTER: Cluster = Cluster.Localnet;
 
 describe("Coinflip", () => {
-  const BASIS_POINT_MAX = 10_000;
-  const OFFSET = 64;
   const U64_MAX = new BN("18446744073709551615");
   const MIN_SQRT_PRICE = new BN("4295048016");
   const MAX_SQRT_PRICE = new BN("79226673521066979257578248091");
@@ -27,8 +24,6 @@ describe("Coinflip", () => {
 
   let app: App;
   let token: Record<AppToken, PublicKey>;
-  // dbc config
-  let configKp: anchor.web3.Keypair = Keypair.generate(); // default
 
   beforeAll(async () => {
     app = await initApp(CLUSTER, adminKeypair);
@@ -36,12 +31,42 @@ describe("Coinflip", () => {
     user.setChain(app.chain);
   });
 
-  it("swap in virtual pool", async () => {
-    configKp = getKeypairFromSeed(2_000);
+  it("full flow", async () => {
+    const configKp = getKeypairFromSeed(2_000);
     const baseMintKP = getKeypairFromSeed(2_001);
     const quoteMint = getMintByAppToken(app.provider.cluster, AppToken.USDC);
 
     const [alice] = await user.rotateUsers(1);
+
+    // --- prepare damm ---
+
+    const CREATE_CONFIG_KEY = 0;
+    const permission = new BN(1).shln(CREATE_CONFIG_KEY);
+    const index = new BN(0);
+
+    await app.dammV2.tryCreateOperatorAccount(
+      adminKeypair.publicKey, // the address that will later call createConfig
+      permission,
+      { resultType: ResultType.BroadcastedTx }
+    );
+
+    const [poolAuthority] = app.dbc.pdaPoolAuthority();
+    await app.dammV2.tryCreateDynamicConfig(
+      index,
+      {
+        index,
+        configParameters: {
+          poolCreatorAuthority: poolAuthority,
+          permission,
+        },
+      },
+      { resultType: ResultType.BroadcastedTx }
+    );
+
+    // fund pool authority
+    await app.chain.transferSol(1, poolAuthority);
+
+    // --- prepare dbc ---
 
     const sqrtStartPrice = MIN_SQRT_PRICE.shln(32);
     const cliffFeeNumerator = 20_000_000;
@@ -52,7 +77,6 @@ describe("Coinflip", () => {
       (cliffFeeNumerator - endFeeNumerator) / numberOfPeriod;
 
     const curves = [];
-
     for (let i = 1; i <= 16; i++) {
       if (i == 16) {
         curves.push({
@@ -85,7 +109,7 @@ describe("Coinflip", () => {
           migrationOption: 1, // damm v2
           tokenType: 1, // token-2022
           tokenDecimal: 6,
-          migrationQuoteThreshold: LAMPORTS_PER_SOL * 5,
+          migrationQuoteThreshold: 5_000_000,
           partnerLiquidityPercentage: 20,
           creatorLiquidityPercentage: 20,
           partnerPermanentLockedLiquidityPercentage: 55,
@@ -142,8 +166,6 @@ describe("Coinflip", () => {
       { resultType: ResultType.BroadcastedTx }
     );
 
-    await app.dbc.queryPoolConfig(configKp.publicKey);
-
     await app.dbc.tryCreatePoolWithToken2022(
       baseMintKP,
       quoteMint,
@@ -158,20 +180,7 @@ describe("Coinflip", () => {
       { resultType: ResultType.BroadcastedTx }
     );
 
-    await app.dbc.queryVirtualPool(
-      configKp.publicKey,
-      baseMintKP.publicKey,
-      quoteMint
-    );
-
-    const aliceUsdcBefore = await app.chain.getAtaBalance(
-      alice.publicKey,
-      quoteMint
-    );
-    const aliceBaseTokenBefore = await app.chain.getAtaBalance(
-      alice.publicKey,
-      baseMintKP.publicKey
-    );
+    // --- swap in virtual pool ---
 
     await app.dbc.withSender(alice).trySwap(
       baseMintKP.publicKey,
@@ -179,92 +188,32 @@ describe("Coinflip", () => {
       configKp.publicKey,
       {
         swapParameters2: {
-          swapMode: 0,
-          amount0: 1_000_000,
+          swapMode: 1, // partial fill
+          amount0: 6_000_000,
           amount1: 0,
         },
       },
       { resultType: ResultType.BroadcastedTx }
     );
 
-    const aliceUsdcAfter = await app.chain.getAtaBalance(
-      alice.publicKey,
-      quoteMint
-    );
-    const aliceBaseTokenAfter = await app.chain.getAtaBalance(
-      alice.publicKey,
-      baseMintKP.publicKey
-    );
-
-    li({
-      aliceUsdcBefore,
-      aliceUsdcAfter,
-      aliceBaseTokenBefore,
-      aliceBaseTokenAfter,
-    });
-  });
-
-  it("prepare damm", async () => {
-    const CREATE_CONFIG_KEY = 0;
-    const permission = new BN(1).shln(CREATE_CONFIG_KEY);
-    const index = new BN(0);
-
-    const baseMint = getKeypairFromSeed(2_001).publicKey;
-    const quoteMint = getMintByAppToken(app.provider.cluster, AppToken.USDC);
-
-    const [alice] = await user.rotateUsers(1);
-
-    await app.dammV2.tryCreateOperatorAccount(
-      adminKeypair.publicKey, // the address that will later call createConfig
-      permission,
-      { resultType: ResultType.BroadcastedTx }
-    );
-
-    const feeTimeScheduler: BorshFeeTimeSchedulerAccount = {
-      cliffFeeNumerator: new BN(2_500_000),
-      numberOfPeriod: 0,
-      reductionFactor: new BN(0),
-      periodFrequency: new BN(0),
-      baseFeeMode: 0,
-      padding: new Array(0).fill(0),
-    };
-
-    const baseFeeData = app.dammV2.program.coder.types.encode(
-      "borshFeeTimeScheduler",
-      feeTimeScheduler
-    );
-
-    await app.dammV2.tryCreateConfig(
-      index,
-      {
-        index,
-        configParameters: {
-          poolFees: {
-            baseFee: {
-              data: Array.from(baseFeeData),
-            },
-            compoundingFeeBps: 0,
-            padding: 0,
-            // dynamicFee: null,
-          },
-          sqrtMinPrice: new BN(MIN_SQRT_PRICE),
-          sqrtMaxPrice: new BN(MAX_SQRT_PRICE),
-          vaultConfigKey: PublicKey.default,
-          poolCreatorAuthority: adminKeypair.publicKey,
-          activationType: 1,
-          collectFeeMode: 0,
-          permission: new BN(0),
-        },
-      },
-      { resultType: ResultType.BroadcastedTx }
-    );
-
-    await app.dammV2.queryConfig(index);
-
+    // --- migrate ---
     await app.dbc.tryCreateMeteoraDammV2Metadata(
-      baseMint,
+      baseMintKP.publicKey,
       quoteMint,
       configKp.publicKey,
+      { resultType: ResultType.BroadcastedTx }
+    );
+
+    const [dammConfig] = app.dammV2.pdaConfig(index);
+
+    await app.dbc.tryMigrateToDammV2(
+      app.dammV2,
+      Keypair.generate(),
+      Keypair.generate(),
+      baseMintKP.publicKey,
+      quoteMint,
+      configKp.publicKey,
+      dammConfig,
       { resultType: ResultType.BroadcastedTx, isDisplayed: true }
     );
   });

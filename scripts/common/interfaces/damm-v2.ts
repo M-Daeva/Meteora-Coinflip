@@ -18,6 +18,16 @@ export interface StaticConfigParameters {
   permission: BN;
 }
 
+export interface CreateDynamicConfigArgs {
+  index: BN;
+  configParameters: DynamicConfigParameters;
+}
+
+export interface DynamicConfigParameters {
+  poolCreatorAuthority: PublicKey;
+  permission: BN;
+}
+
 export interface PoolFeeParameters {
   // Base fee
   baseFee: BaseFeeParameters;

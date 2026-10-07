@@ -327,7 +327,7 @@ export class DbcHelpers implements IHelpers {
         quoteMint: configState.quoteMint,
         tokenAVault,
         tokenBVault,
-        baseVault: virtualPoolState.poolState.baseMint,
+        baseVault: virtualPoolState.poolState.baseVault,
         quoteVault: virtualPoolState.poolState.quoteVault,
         payer: sender,
         tokenBaseProgram,

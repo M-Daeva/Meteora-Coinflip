@@ -1,7 +1,7 @@
 // Auto-generated Anchor types and converters
 import * as anchor from '@coral-xyz/anchor';
 import { PublicKey } from '@solana/web3.js';
-import { CreateConfigArgs, StaticConfigParameters, PoolFeeParameters, BaseFeeParameters, DynamicFeeParameters } from './damm-v2';
+import { CreateConfigArgs, StaticConfigParameters, CreateDynamicConfigArgs, DynamicConfigParameters, PoolFeeParameters, BaseFeeParameters, DynamicFeeParameters } from './damm-v2';
 
 // Anchor-generated types
 export type AnchorCreateConfigArgs = [
@@ -17,6 +17,16 @@ export interface AnchorStaticConfigParameters {
   poolCreatorAuthority: PublicKey;
   activationType: number;
   collectFeeMode: number;
+  permission: anchor.BN;
+}
+
+export type AnchorCreateDynamicConfigArgs = [
+  anchor.BN,
+  AnchorDynamicConfigParameters
+];
+
+export interface AnchorDynamicConfigParameters {
+  poolCreatorAuthority: PublicKey;
   permission: anchor.BN;
 }
 
@@ -63,6 +73,24 @@ export function convertStaticConfigParameters(
     poolCreatorAuthority: obj.poolCreatorAuthority,
     activationType: obj.activationType,
     collectFeeMode: obj.collectFeeMode,
+    permission: obj.permission,
+  };
+}
+
+export function convertCreateDynamicConfigArgs(
+  args: CreateDynamicConfigArgs
+): AnchorCreateDynamicConfigArgs {
+  return [
+    args.index,
+    convertDynamicConfigParameters(args.configParameters)
+  ];
+}
+
+export function convertDynamicConfigParameters(
+  obj: DynamicConfigParameters
+): AnchorDynamicConfigParameters {
+  return {
+    poolCreatorAuthority: obj.poolCreatorAuthority,
     permission: obj.permission,
   };
 }

@@ -130,6 +130,30 @@ export class DammV2Helpers implements IHelpers {
     return this.handleTx(signerList, [ix], txSettings);
   }
 
+  async tryCreateDynamicConfig(
+    index: BNType,
+    args: IDammV2.CreateDynamicConfigArgs,
+    txSettings: TxSettings = {}
+  ): Promise<ParsedTransactionWithMeta | Ix[] | string> {
+    const [_payer, sender] = this.getActors(txSettings);
+    const signerList = this.getSigners();
+
+    const [config] = this.pdaConfig(index);
+    const [operator] = this.pdaOperatorAddress(sender);
+
+    const ix = await this.program.methods
+      .createDynamicConfig(...IADammV2.convertCreateDynamicConfigArgs(args))
+      .accountsPartial({
+        config,
+        operator,
+        payer: sender,
+        signer: sender,
+      })
+      .instruction();
+
+    return this.handleTx(signerList, [ix], txSettings);
+  }
+
   async queryConfig(
     index: BNType,
     isDisplayed: boolean = false
