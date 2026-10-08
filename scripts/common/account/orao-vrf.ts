@@ -78,6 +78,29 @@ export class OraoVrfHelpers implements IHelpers {
     this.getSigners = getSignersFactory();
   }
 
+  async tryInitNetwork(
+    args: IOraoVrf.InitNetworkArgs,
+    txSettings: TxSettings = {}
+  ): Promise<ParsedTransactionWithMeta | Ix[] | string> {
+    const [_payer, sender] = this.getActors(txSettings);
+    const signerList = this.getSigners();
+
+    // PDA
+    const [networkState] = this.pdaNetworkState();
+
+    const ix = await this.program.methods
+      .initNetwork(...IAOraoVrf.convertInitNetworkArgs(args))
+      .accountsPartial({
+        systemProgram: this.SYSTEM_PROGRAM,
+        payer: sender,
+        networkState,
+        treasury: sender,
+      })
+      .instruction();
+
+    return this.handleTx(signerList, [ix], txSettings);
+  }
+
   async queryNetworkState(
     isDisplayed: boolean = false
   ): Promise<NetworkStateAccount> {

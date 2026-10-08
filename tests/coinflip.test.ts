@@ -19,7 +19,7 @@ describe("Coinflip", () => {
 
   const user = new AppUser();
   const adminKeypair = user.getAdmin();
-  const _worker = user.getWorker();
+  const worker = user.getWorker();
   const payer = user.getPayer();
 
   let app: App;
@@ -279,5 +279,20 @@ describe("Coinflip", () => {
       AMOUNT_TO_SWAP_AFTER_MIGRATION
     );
     expect(aliceBaseAfter - aliceBaseBefore).toBe(822_239);
+  });
+
+  it("randomness", async () => {
+    const [alice] = await user.rotateUsers(1);
+
+    await app.oraoVrf.tryInitNetwork(
+      {
+        fee: 1_000_000,
+        configAuthority: adminKeypair.publicKey,
+        fulfillmentAuthorities: [worker.publicKey],
+      },
+      { resultType: ResultType.BroadcastedTx, isDisplayed: true }
+    );
+
+    await app.oraoVrf.queryNetworkState(true);
   });
 });
