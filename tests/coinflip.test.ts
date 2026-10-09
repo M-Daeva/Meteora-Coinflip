@@ -290,9 +290,28 @@ describe("Coinflip", () => {
         configAuthority: adminKeypair.publicKey,
         fulfillmentAuthorities: [worker.publicKey],
       },
-      { resultType: ResultType.BroadcastedTx, isDisplayed: true }
+      { resultType: ResultType.BroadcastedTx }
     );
 
-    await app.oraoVrf.queryNetworkState(true);
+    const seed = Keypair.generate().publicKey.toBytes();
+
+    await app.oraoVrf.withSender(alice).tryRequest(seed, {
+      resultType: ResultType.BroadcastedTx,
+    });
+
+    const {
+      request: { pending },
+    } = await app.oraoVrf.queryRequest(seed);
+    expect(pending?.[0].seed).toEqual([...seed]);
+
+    await app.oraoVrf.withSender(worker).tryFulfill(seed, {
+      resultType: ResultType.BroadcastedTx,
+    });
+
+    const {
+      request: { fulfilled },
+    } = await app.oraoVrf.queryRequest(seed);
+    expect(fulfilled?.[0].seed).toEqual([...seed]);
+    expect(fulfilled?.[0].randomness).not.toEqual([]);
   });
 });
