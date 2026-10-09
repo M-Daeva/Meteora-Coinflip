@@ -57,9 +57,151 @@ export type Coinflip = {
         }
       ],
       "args": []
+    },
+    {
+      "name": "placeBet",
+      "discriminator": [
+        222,
+        62,
+        67,
+        220,
+        63,
+        166,
+        126,
+        33
+      ],
+      "accounts": [
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config"
+        },
+        {
+          "name": "bet",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "arg",
+                "path": "betNonce"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vrfProgram",
+          "address": "VRFzZoJdhFWL8rkvu87LpKM3RbcVezpMEc6X5GVDr7y"
+        },
+        {
+          "name": "vrfNetworkState",
+          "writable": true
+        },
+        {
+          "name": "vrfTreasury",
+          "writable": true
+        },
+        {
+          "name": "vrfRequest",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  97,
+                  111,
+                  45,
+                  118,
+                  114,
+                  102,
+                  45,
+                  114,
+                  97,
+                  110,
+                  100,
+                  111,
+                  109,
+                  110,
+                  101,
+                  115,
+                  115,
+                  45,
+                  114,
+                  101,
+                  113,
+                  117,
+                  101,
+                  115,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "bet"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "vrfProgram"
+            }
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "betNonce",
+          "type": "u64"
+        },
+        {
+          "name": "betAmount",
+          "type": "u64"
+        },
+        {
+          "name": "betSide",
+          "type": {
+            "defined": {
+              "name": "betSide"
+            }
+          }
+        }
+      ]
     }
   ],
   "accounts": [
+    {
+      "name": "bet",
+      "discriminator": [
+        147,
+        23,
+        35,
+        59,
+        15,
+        75,
+        155,
+        32
+      ]
+    },
     {
       "name": "config",
       "discriminator": [
@@ -75,6 +217,44 @@ export type Coinflip = {
     }
   ],
   "types": [
+    {
+      "name": "bet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "side",
+            "type": {
+              "defined": {
+                "name": "betSide"
+              }
+            }
+          },
+          {
+            "name": "createdAt",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "betSide",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "head"
+          },
+          {
+            "name": "tail"
+          }
+        ]
+      }
+    },
     {
       "name": "config",
       "type": {

@@ -15,9 +15,24 @@ pub const LOCALNET_USDC: Pubkey =
     Pubkey::from_str_const("8XdLEJXrM3yYfFg5EpMqcCKmXXSQeBKfTjvNP619LbE2");
 
 pub const SEED_CONFIG: &str = "config";
+pub const SEED_BET: &str = "bet";
 
 #[account]
 #[derive(InitSpace, PartialEq, Debug)]
 pub struct Config {
     pub admin: Pubkey,
+}
+
+#[account]
+#[derive(InitSpace, PartialEq, Debug)]
+pub struct Bet {
+    pub amount: u64,
+    pub side: BetSide,
+    pub created_at: u64,
+}
+
+#[derive(InitSpace, AnchorSerialize, AnchorDeserialize, PartialEq, Debug, Clone)]
+pub enum BetSide {
+    Head,
+    Tail,
 }

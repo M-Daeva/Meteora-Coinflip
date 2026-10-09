@@ -51,9 +51,151 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "place_bet",
+      "discriminator": [
+        222,
+        62,
+        67,
+        220,
+        63,
+        166,
+        126,
+        33
+      ],
+      "accounts": [
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config"
+        },
+        {
+          "name": "bet",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "arg",
+                "path": "bet_nonce"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vrf_program",
+          "address": "VRFzZoJdhFWL8rkvu87LpKM3RbcVezpMEc6X5GVDr7y"
+        },
+        {
+          "name": "vrf_network_state",
+          "writable": true
+        },
+        {
+          "name": "vrf_treasury",
+          "writable": true
+        },
+        {
+          "name": "vrf_request",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  97,
+                  111,
+                  45,
+                  118,
+                  114,
+                  102,
+                  45,
+                  114,
+                  97,
+                  110,
+                  100,
+                  111,
+                  109,
+                  110,
+                  101,
+                  115,
+                  115,
+                  45,
+                  114,
+                  101,
+                  113,
+                  117,
+                  101,
+                  115,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "bet"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "vrf_program"
+            }
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "bet_nonce",
+          "type": "u64"
+        },
+        {
+          "name": "bet_amount",
+          "type": "u64"
+        },
+        {
+          "name": "bet_side",
+          "type": {
+            "defined": {
+              "name": "BetSide"
+            }
+          }
+        }
+      ]
     }
   ],
   "accounts": [
+    {
+      "name": "Bet",
+      "discriminator": [
+        147,
+        23,
+        35,
+        59,
+        15,
+        75,
+        155,
+        32
+      ]
+    },
     {
       "name": "Config",
       "discriminator": [
@@ -69,6 +211,44 @@
     }
   ],
   "types": [
+    {
+      "name": "Bet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "side",
+            "type": {
+              "defined": {
+                "name": "BetSide"
+              }
+            }
+          },
+          {
+            "name": "created_at",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BetSide",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Head"
+          },
+          {
+            "name": "Tail"
+          }
+        ]
+      }
+    },
     {
       "name": "Config",
       "type": {

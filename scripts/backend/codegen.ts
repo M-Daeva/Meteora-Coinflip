@@ -16,6 +16,12 @@ interface PropertyInfo {
   enumValues?: string[];
 }
 
+interface EnumInfo {
+  name: string;
+  /** Variant names in declaration order, e.g. ["Head", "Tail"] */
+  variants: string[];
+}
+
 interface FunctionInfo {
   name: string;
   parameters: ParameterInfo[];
@@ -31,6 +37,7 @@ export class AnchorTypeGenerator {
   private sourceFile: ts.SourceFile;
   private typeChecker: ts.TypeChecker;
   private program: ts.Program;
+  private enumNames = new Set<string>();
 
   constructor(filePath: string) {
     this.program = ts.createProgram([filePath], {
@@ -41,33 +48,31 @@ export class AnchorTypeGenerator {
     this.sourceFile = this.program.getSourceFile(filePath)!;
   }
 
-  getSrcImports(types: TypeInfo[]): string {
+  getSrcImports(types: TypeInfo[], enums: EnumInfo[]): string {
     const importPath =
       "./" + path.basename(this.sourceFile.fileName).replace(/\.ts$/, "");
 
-    let typeImports = types
-      .reduce((acc, cur) => acc + cur.name + ", ", "")
-      .trim();
+    const names = [...types.map((t) => t.name), ...enums.map((e) => e.name)];
 
-    typeImports = typeImports.slice(0, typeImports.length - 1);
-
-    return `import { ${typeImports} } from '${importPath}';\n\n`;
+    return `import { ${names.join(", ")} } from '${importPath}';\n\n`;
   }
 
   generate(): string {
+    const enums = this.extractEnums();
+    this.enumNames = new Set(enums.map((e) => e.name));
     const types = this.extractTypes();
     const functions = this.extractFunctions();
 
     let output = `// Auto-generated Anchor types and converters\n`;
     output += `import * as anchor from '@coral-xyz/anchor';\n`;
     output += `import { PublicKey } from '@solana/web3.js';\n`;
-    output += this.getSrcImports(types);
+    output += this.getSrcImports(types, enums);
 
     // Generate anchor types
-    output += this.generateAnchorTypes(types);
+    output += this.generateAnchorTypes(types, enums);
 
     // Generate converter functions
-    output += this.generateConverters(types, functions);
+    output += this.generateConverters(types, functions, enums);
 
     return output;
   }
@@ -87,6 +92,23 @@ export class AnchorTypeGenerator {
 
     visit(this.sourceFile);
     return types;
+  }
+
+  private extractEnums(): EnumInfo[] {
+    const enums: EnumInfo[] = [];
+
+    const visit = (node: ts.Node) => {
+      if (ts.isEnumDeclaration(node)) {
+        enums.push({
+          name: node.name.text,
+          variants: node.members.map((m) => m.name.getText(this.sourceFile)),
+        });
+      }
+      ts.forEachChild(node, visit);
+    };
+
+    visit(this.sourceFile);
+    return enums;
   }
 
   private extractFunctions(): FunctionInfo[] {
@@ -220,14 +242,31 @@ export class AnchorTypeGenerator {
     return undefined;
   }
 
-  private generateAnchorTypes(types: TypeInfo[]): string {
+  private generateAnchorTypes(types: TypeInfo[], enums: EnumInfo[]): string {
     let output = `// Anchor-generated types\n`;
+
+    for (const e of enums) {
+      output += this.generateAnchorEnumType(e);
+    }
 
     for (const type of types) {
       output += this.generateAnchorType(type);
     }
 
     return output + "\n";
+  }
+
+  /**
+   * Anchor encodes a Rust enum variant as an object with a single camelCase
+   * key: `{ head: {} }`. The enum type is the union of those shapes.
+   */
+  private generateAnchorEnumType(e: EnumInfo): string {
+    const variants = e.variants.map((v) => `{ ${this.variantKey(v)}: {} }`);
+    return `export type Anchor${e.name} =\n  | ${variants.join("\n  | ")};\n\n`;
+  }
+
+  private variantKey(variant: string): string {
+    return variant.charAt(0).toLowerCase() + variant.slice(1);
   }
 
   private generateAnchorType(type: TypeInfo): string {
@@ -323,16 +362,9 @@ export class AnchorTypeGenerator {
         return "boolean";
 
       default:
-        // Handle custom types
-        if (this.isCustomType(baseType)) {
+        // Enums and custom interfaces both get a generated Anchor* type
+        if (this.enumNames.has(baseType) || this.isCustomType(baseType)) {
           return `Anchor${baseType}`;
-        }
-
-        // Handle enums
-        if (prop.isEnum && prop.enumValues) {
-          return `{ ${prop.enumValues
-            .map((v) => `${v.toLowerCase()}: {}`)
-            .join(" | ")} }`;
         }
 
         return baseType;
@@ -409,9 +441,14 @@ export class AnchorTypeGenerator {
 
   private generateConverters(
     types: TypeInfo[],
-    functions: FunctionInfo[]
+    functions: FunctionInfo[],
+    enums: EnumInfo[]
   ): string {
     let output = `// Type converters\n`;
+
+    for (const e of enums) {
+      output += this.generateEnumConverter(e);
+    }
 
     for (const type of types) {
       output += this.generateConverter(type);
@@ -424,6 +461,23 @@ export class AnchorTypeGenerator {
       }
     }
 
+    return output;
+  }
+
+  /**
+   * Switch on the TS enum member rather than its runtime value, so this works
+   * for numeric, string and explicitly-initialised enums alike.
+   */
+  private generateEnumConverter(e: EnumInfo): string {
+    let output = `export function convert${e.name}(\n  value: ${e.name}\n): Anchor${e.name} {\n`;
+    output += `  switch (value) {\n`;
+    for (const v of e.variants) {
+      output += `    case ${e.name}.${v}:\n      return { ${this.variantKey(
+        v
+      )}: {} };\n`;
+    }
+    output += `    default:\n      throw new Error(\`Unknown ${e.name} value: \${value}\`);\n`;
+    output += `  }\n}\n\n`;
     return output;
   }
 
@@ -596,13 +650,9 @@ export class AnchorTypeGenerator {
         return accessor;
 
       default:
-        if (this.isCustomType(baseType)) {
-          const converterName = `convert${baseType}`;
-          return `${converterName}(${accessor})`;
-        }
-
-        if (prop.isEnum && prop.enumValues) {
-          return `{ [${accessor}.toLowerCase()]: {} }`;
+        // Enums and custom interfaces both get a generated convert* function
+        if (this.enumNames.has(baseType) || this.isCustomType(baseType)) {
+          return `convert${baseType}(${accessor})`;
         }
 
         return accessor;

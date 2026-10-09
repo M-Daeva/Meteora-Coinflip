@@ -5,6 +5,7 @@ import { IBlockchainProvider, LiteSvmProvider } from "./provider";
 import { IdlAccounts } from "@coral-xyz/anchor";
 import { Coinflip } from "../schema/types/coinflip";
 import { AppToken, getMintByAppToken } from "../config";
+import { OraoVrfHelpers } from "./orao-vrf";
 import {
   PublicKey,
   TransactionInstruction as Ix,
@@ -21,6 +22,7 @@ import {
   handleTxFactory,
   li,
   logAndReturn,
+  numberToRustBuffer,
   withSenderFactory,
 } from "../utils";
 
@@ -30,6 +32,7 @@ import * as IACoinflip from "../interfaces/coinflip.anchor";
 type CoinflipAccount<T extends keyof IdlAccounts<Coinflip>> =
   IdlAccounts<Coinflip>[T];
 export type ConfigAccount = CoinflipAccount<"config">;
+export type BetAccount = CoinflipAccount<"bet">;
 
 export class CoinflipHelpers implements IHelpers {
   private SYSTEM_PROGRAM: PublicKey = anchor.web3.SystemProgram.programId;
@@ -98,15 +101,71 @@ export class CoinflipHelpers implements IHelpers {
     return this.handleTx(signerList, [ix], txSettings);
   }
 
+  async tryPlaceBet(
+    oraoVrfHelpers: OraoVrfHelpers,
+    args: ICoinflip.PlaceBetArgs,
+    txSettings: TxSettings = {}
+  ): Promise<ParsedTransactionWithMeta | Ix[] | string> {
+    const [_payer, sender] = this.getActors(txSettings);
+    const signerList = this.getSigners();
+
+    const {
+      config: { treasury: vrfTreasury },
+    } = await oraoVrfHelpers.queryNetworkState();
+
+    // PDA
+    const [config] = this.pdaConfig();
+    const [bet] = this.pdaBet(sender, args.betNonce);
+    const [vrfNetworkState] = oraoVrfHelpers.pdaNetworkState();
+    const [vrfRequest] = oraoVrfHelpers.pdaRandomness(bet.toBuffer());
+
+    const ix = await this.program.methods
+      .placeBet(...IACoinflip.convertPlaceBetArgs(args))
+      .accountsStrict({
+        systemProgram: this.SYSTEM_PROGRAM,
+        vrfProgram: oraoVrfHelpers.program.programId,
+        config,
+        bet,
+        user: sender,
+        vrfNetworkState,
+        vrfTreasury,
+        vrfRequest,
+      })
+      .instruction();
+
+    return this.handleTx(signerList, [ix], txSettings);
+  }
+
   async queryConfig(isDisplayed: boolean = false): Promise<ConfigAccount> {
     const [pda] = this.pdaConfig();
     const [res] = await this.fetchMultipleAccounts("config", [pda]);
     return logAndReturn(res, isDisplayed);
   }
 
+  async queryBet(
+    user: PublicKey,
+    betNonce: number,
+    isDisplayed: boolean = false
+  ): Promise<BetAccount> {
+    const [pda] = this.pdaBet(user, betNonce);
+    const [res] = await this.fetchMultipleAccounts("bet", [pda]);
+    return logAndReturn(res, isDisplayed);
+  }
+
   pdaConfig(): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from("config")],
+      this.program.programId
+    );
+  }
+
+  pdaBet(user: PublicKey, betNonce: number) {
+    return PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("bet"),
+        user.toBuffer(),
+        numberToRustBuffer(betNonce, "u64"),
+      ],
       this.program.programId
     );
   }

@@ -7,6 +7,7 @@ import { Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { App } from "../scripts/common/account";
 import { getKeypairFromSeed, li } from "../scripts/common/utils";
 import { AppToken, Cluster, getMintByAppToken } from "../scripts/common/config";
+import { BetSide } from "../scripts/common/interfaces/coinflip";
 
 const { BN } = anchor;
 
@@ -40,6 +41,17 @@ describe("Coinflip", () => {
     const quoteMint = getMintByAppToken(app.provider.cluster, AppToken.USDC);
 
     const [alice] = await user.rotateUsers(1);
+
+    // --- prepare vrf ---
+
+    await app.oraoVrf.tryInitNetwork(
+      {
+        fee: 1_000_000,
+        configAuthority: adminKeypair.publicKey,
+        fulfillmentAuthorities: [worker.publicKey],
+      },
+      { resultType: ResultType.BroadcastedTx }
+    );
 
     // --- prepare damm ---
 
@@ -183,6 +195,10 @@ describe("Coinflip", () => {
       { resultType: ResultType.BroadcastedTx }
     );
 
+    // --- prepare coinflip ---
+
+    await app.coinflip.tryInit({}, { resultType: ResultType.BroadcastedTx });
+
     // --- swap in virtual pool ---
 
     let aliceUsdcBefore = await app.chain.getAtaBalance(
@@ -279,19 +295,37 @@ describe("Coinflip", () => {
       AMOUNT_TO_SWAP_AFTER_MIGRATION
     );
     expect(aliceBaseAfter - aliceBaseBefore).toBe(822_239);
+
+    // --- interact with vrf ---
+
+    const betNonce = 42;
+
+    await app.coinflip.withSender(alice).tryPlaceBet(
+      app.oraoVrf,
+      {
+        betAmount: 1_000,
+        betSide: BetSide.Head,
+        betNonce,
+      },
+      { resultType: ResultType.BroadcastedTx }
+    );
+
+    const bet = await app.coinflip.queryBet(alice.publicKey, betNonce);
+    expect("head" in bet.side).toBeTruthy();
+
+    const [seed] = app.coinflip.pdaBet(alice.publicKey, betNonce);
+    await app.oraoVrf.withSender(worker).tryFulfill(seed.toBuffer(), {
+      resultType: ResultType.BroadcastedTx,
+    });
+
+    const {
+      request: { fulfilled },
+    } = await app.oraoVrf.queryRequest(seed.toBuffer());
+    expect(fulfilled?.[0].randomness).not.toEqual([]);
   });
 
   it("randomness", async () => {
     const [alice] = await user.rotateUsers(1);
-
-    await app.oraoVrf.tryInitNetwork(
-      {
-        fee: 1_000_000,
-        configAuthority: adminKeypair.publicKey,
-        fulfillmentAuthorities: [worker.publicKey],
-      },
-      { resultType: ResultType.BroadcastedTx }
-    );
 
     const seed = Keypair.generate().publicKey.toBytes();
 

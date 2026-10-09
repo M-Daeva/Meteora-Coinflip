@@ -25,3 +25,4 @@ base = { workspace = true }
 coinflip-api = { workspace = true }
 solana-program = { workspace = true }
 uint = { workspace = true }
+orao-solana-vrf = { workspace = true }
