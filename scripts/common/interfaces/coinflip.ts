@@ -1,7 +1,9 @@
 import { PublicKey } from "@solana/web3.js";
 import { N } from ".";
 
-export interface InitArgs {}
+export interface InitArgs {
+  worker: PublicKey;
+}
 
 export interface PlaceBetArgs {
   betNonce: N<64>;
@@ -12,4 +14,9 @@ export interface PlaceBetArgs {
 export enum BetSide {
   Head,
   Tail,
+}
+
+export interface SettleBetArgs {
+  betNonce: N<64>;
+  user: PublicKey;
 }

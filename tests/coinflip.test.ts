@@ -197,7 +197,10 @@ describe("Coinflip", () => {
 
     // --- prepare coinflip ---
 
-    await app.coinflip.tryInit({}, { resultType: ResultType.BroadcastedTx });
+    await app.coinflip.tryInit(
+      { worker: worker.publicKey },
+      { resultType: ResultType.BroadcastedTx }
+    );
 
     // --- swap in virtual pool ---
 
@@ -322,6 +325,15 @@ describe("Coinflip", () => {
       request: { fulfilled },
     } = await app.oraoVrf.queryRequest(seed.toBuffer());
     expect(fulfilled?.[0].randomness).not.toEqual([]);
+
+    await app.coinflip.withSender(worker).trySettleBet(
+      app.oraoVrf,
+      {
+        betNonce,
+        user: alice.publicKey,
+      },
+      { resultType: ResultType.BroadcastedTx, isDisplayed: true }
+    );
   });
 
   it("randomness", async () => {

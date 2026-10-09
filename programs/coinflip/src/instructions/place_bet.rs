@@ -26,9 +26,7 @@ pub struct PlaceBet<'info> {
     )]
     pub bet: Account<'info, Bet>,
 
-    /// CHECK: VRF crate
-    #[account(address = orao_solana_vrf::ID)]
-    pub vrf_program: UncheckedAccount<'info>,
+    pub vrf_program: Program<'info, orao_solana_vrf::program::OraoVrf>,
 
     /// CHECK: VRF program
     #[account(mut)]

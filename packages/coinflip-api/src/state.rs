@@ -21,6 +21,7 @@ pub const SEED_BET: &str = "bet";
 #[derive(InitSpace, PartialEq, Debug)]
 pub struct Config {
     pub admin: Pubkey,
+    pub worker: Pubkey,
 }
 
 #[account]

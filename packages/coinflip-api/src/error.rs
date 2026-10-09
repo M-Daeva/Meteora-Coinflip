@@ -18,6 +18,9 @@ pub enum CustomError {
 
     #[msg("Bad discriminator")]
     BadDiscriminator,
+
+    #[msg("Randomness isn't fulfilled")]
+    RandomnessNotFulfilled,
 }
 
 impl From<CustomError> for ProgError {

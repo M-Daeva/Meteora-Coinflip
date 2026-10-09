@@ -1,7 +1,7 @@
 // Auto-generated Anchor types and converters
 import * as anchor from '@coral-xyz/anchor';
 import { PublicKey } from '@solana/web3.js';
-import { InitArgs, PlaceBetArgs, BetSide } from './coinflip';
+import { InitArgs, PlaceBetArgs, SettleBetArgs, BetSide } from './coinflip';
 
 // Anchor-generated types
 export type AnchorBetSide =
@@ -9,13 +9,18 @@ export type AnchorBetSide =
   | { tail: {} };
 
 export type AnchorInitArgs = [
-  
+  PublicKey
 ];
 
 export type AnchorPlaceBetArgs = [
   anchor.BN,
   anchor.BN,
   AnchorBetSide
+];
+
+export type AnchorSettleBetArgs = [
+  anchor.BN,
+  PublicKey
 ];
 
 
@@ -37,7 +42,7 @@ export function convertInitArgs(
   args: InitArgs
 ): AnchorInitArgs {
   return [
-    
+    args.worker
   ];
 }
 
@@ -48,6 +53,15 @@ export function convertPlaceBetArgs(
     new anchor.BN(args.betNonce),
     new anchor.BN(args.betAmount),
     convertBetSide(args.betSide)
+  ];
+}
+
+export function convertSettleBetArgs(
+  args: SettleBetArgs
+): AnchorSettleBetArgs {
+  return [
+    new anchor.BN(args.betNonce),
+    args.user
   ];
 }
 

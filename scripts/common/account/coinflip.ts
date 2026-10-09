@@ -136,6 +136,34 @@ export class CoinflipHelpers implements IHelpers {
     return this.handleTx(signerList, [ix], txSettings);
   }
 
+  async trySettleBet(
+    oraoVrfHelpers: OraoVrfHelpers,
+    args: ICoinflip.SettleBetArgs,
+    txSettings: TxSettings = {}
+  ): Promise<ParsedTransactionWithMeta | Ix[] | string> {
+    const [_payer, sender] = this.getActors(txSettings);
+    const signerList = this.getSigners();
+
+    // PDA
+    const [config] = this.pdaConfig();
+    const [bet] = this.pdaBet(args.user, args.betNonce);
+    const [vrfRequest] = oraoVrfHelpers.pdaRandomness(bet.toBuffer());
+
+    const ix = await this.program.methods
+      .settleBet(...IACoinflip.convertSettleBetArgs(args))
+      .accountsStrict({
+        systemProgram: this.SYSTEM_PROGRAM,
+        vrfProgram: oraoVrfHelpers.program.programId,
+        config,
+        bet,
+        sender,
+        vrfRequest,
+      })
+      .instruction();
+
+    return this.handleTx(signerList, [ix], txSettings);
+  }
+
   async queryConfig(isDisplayed: boolean = false): Promise<ConfigAccount> {
     const [pda] = this.pdaConfig();
     const [res] = await this.fetchMultipleAccounts("config", [pda]);

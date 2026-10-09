@@ -26,7 +26,7 @@ pub struct Init<'info> {
 }
 
 impl<'info> Init<'info> {
-    pub fn init(&mut self) -> Result<()> {
+    pub fn init(&mut self, worker: Pubkey) -> Result<()> {
         let Self { admin, config, .. } = self;
 
         admin_guard(
@@ -37,7 +37,10 @@ impl<'info> Init<'info> {
             &LOCALNET_ADMIN,
         )?;
 
-        config.set_inner(Config { admin: admin.key() });
+        config.set_inner(Config {
+            admin: admin.key(),
+            worker,
+        });
 
         Ok(())
     }

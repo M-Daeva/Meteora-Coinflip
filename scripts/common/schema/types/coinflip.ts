@@ -56,7 +56,12 @@ export type Coinflip = {
           }
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "worker",
+          "type": "pubkey"
+        }
+      ]
     },
     {
       "name": "placeBet",
@@ -186,6 +191,121 @@ export type Coinflip = {
           }
         }
       ]
+    },
+    {
+      "name": "settleBet",
+      "discriminator": [
+        115,
+        55,
+        234,
+        177,
+        227,
+        4,
+        10,
+        67
+      ],
+      "accounts": [
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "sender",
+          "docs": [
+            "The sender signing the transaction (worker or user)"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config"
+        },
+        {
+          "name": "bet",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "user"
+              },
+              {
+                "kind": "arg",
+                "path": "betNonce"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vrfProgram",
+          "address": "VRFzZoJdhFWL8rkvu87LpKM3RbcVezpMEc6X5GVDr7y"
+        },
+        {
+          "name": "vrfRequest",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  97,
+                  111,
+                  45,
+                  118,
+                  114,
+                  102,
+                  45,
+                  114,
+                  97,
+                  110,
+                  100,
+                  111,
+                  109,
+                  110,
+                  101,
+                  115,
+                  115,
+                  45,
+                  114,
+                  101,
+                  113,
+                  117,
+                  101,
+                  115,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "bet"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "vrfProgram"
+            }
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "betNonce",
+          "type": "u64"
+        },
+        {
+          "name": "user",
+          "type": "pubkey"
+        }
+      ]
     }
   ],
   "accounts": [
@@ -213,6 +333,19 @@ export type Coinflip = {
         250,
         204,
         130
+      ]
+    },
+    {
+      "name": "randomnessV2",
+      "discriminator": [
+        139,
+        239,
+        184,
+        215,
+        227,
+        86,
+        191,
+        226
       ]
     }
   ],
@@ -263,6 +396,150 @@ export type Coinflip = {
           {
             "name": "admin",
             "type": "pubkey"
+          },
+          {
+            "name": "worker",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "fulfilledRequest",
+      "docs": [
+        "Fulfilled request representation."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "client",
+            "type": "pubkey"
+          },
+          {
+            "name": "seed",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "randomness",
+            "docs": [
+              "Generated randomness.",
+              "",
+              "Please look into the account history logs to observe the individual components."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "pendingRequest",
+      "docs": [
+        "Pending request representation."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "client",
+            "type": "pubkey"
+          },
+          {
+            "name": "seed",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "responses",
+            "docs": [
+              "Responses collected so far."
+            ],
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "randomnessResponse"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "randomnessResponse",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pubkey",
+            "type": "pubkey"
+          },
+          {
+            "name": "randomness",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "randomnessV2",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "request",
+            "type": {
+              "defined": {
+                "name": "requestAccount"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "requestAccount",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "pending",
+            "fields": [
+              {
+                "defined": {
+                  "name": "pendingRequest"
+                }
+              }
+            ]
+          },
+          {
+            "name": "fulfilled",
+            "fields": [
+              {
+                "defined": {
+                  "name": "fulfilledRequest"
+                }
+              }
+            ]
           }
         ]
       }

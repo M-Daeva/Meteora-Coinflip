@@ -4,7 +4,7 @@ use {anchor_lang::prelude::*, orao_solana_vrf};
 pub fn request_randomness<'info>(
     system_program: &Program<'info, System>,
     user: &Signer<'info>,
-    vrf_program: &UncheckedAccount<'info>,
+    vrf_program: &Program<'info, orao_solana_vrf::program::OraoVrf>,
     vrf_network_state: &UncheckedAccount<'info>,
     vrf_treasury: &AccountInfo<'info>,
     vrf_request: &AccountInfo<'info>,
