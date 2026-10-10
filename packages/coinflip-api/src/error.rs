@@ -21,6 +21,18 @@ pub enum CustomError {
 
     #[msg("Randomness isn't fulfilled")]
     RandomnessNotFulfilled,
+
+    #[msg("Slippage is exceeded")]
+    SlippageExceeded,
+
+    #[msg("Bet is too small")]
+    BetIsTooSmall,
+
+    #[msg("Bet is too large")]
+    BetIsTooLarge,
+
+    #[msg("Zero amount to send!")]
+    ZeroAmount,
 }
 
 impl From<CustomError> for ProgError {

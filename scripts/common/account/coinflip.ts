@@ -28,6 +28,7 @@ import {
 
 import * as ICoinflip from "../interfaces/coinflip";
 import * as IACoinflip from "../interfaces/coinflip.anchor";
+import { DbcHelpers } from "./dbc";
 
 type CoinflipAccount<T extends keyof IdlAccounts<Coinflip>> =
   IdlAccounts<Coinflip>[T];
@@ -86,22 +87,39 @@ export class CoinflipHelpers implements IHelpers {
     const [_payer, sender] = this.getActors(txSettings);
     const signerList = this.getSigners();
 
+    const quoteMint = getMintByAppToken(this.provider.cluster, AppToken.USDC);
+    const tokenProgram = await this.getTokenProgram(quoteMint);
+
     // PDA
     const [config] = this.pdaConfig();
+    const [stats] = this.pdaStats();
+
+    // ATA
+    const appQuoteAta = getAta({
+      mint: quoteMint,
+      owner: config,
+      tokenProgram,
+    });
 
     const ix = await this.program.methods
       .init(...IACoinflip.convertInitArgs(args))
       .accountsStrict({
         systemProgram: this.SYSTEM_PROGRAM,
+        tokenProgram,
+        associatedTokenProgram: this.ASSOCIATED_TOKEN_PROGRAM,
         admin: sender,
         config,
+        stats,
+        quoteMint,
+        appQuoteAta,
       })
       .instruction();
 
     return this.handleTx(signerList, [ix], txSettings);
   }
 
-  async tryPlaceBet(
+  async tryPlaceBetDbc(
+    dbcHelpers: DbcHelpers,
     oraoVrfHelpers: OraoVrfHelpers,
     args: ICoinflip.PlaceBetArgs,
     txSettings: TxSettings = {}
@@ -109,24 +127,68 @@ export class CoinflipHelpers implements IHelpers {
     const [_payer, sender] = this.getActors(txSettings);
     const signerList = this.getSigners();
 
-    const {
-      config: { treasury: vrfTreasury },
-    } = await oraoVrfHelpers.queryNetworkState();
+    const [
+      { baseMint, quoteMint, dbcProgram, vrfProgram, dbcConfig },
+      {
+        config: { treasury: vrfTreasury },
+      },
+    ] = await Promise.all([
+      this.queryConfig(),
+      oraoVrfHelpers.queryNetworkState(),
+    ]);
+
+    const [tokenBaseProgram, tokenQuoteProgram] = await Promise.all([
+      this.getTokenProgram(baseMint),
+      this.getTokenProgram(quoteMint),
+    ]);
 
     // PDA
     const [config] = this.pdaConfig();
+    const [stats] = this.pdaStats();
     const [bet] = this.pdaBet(sender, args.betNonce);
     const [vrfNetworkState] = oraoVrfHelpers.pdaNetworkState();
     const [vrfRequest] = oraoVrfHelpers.pdaRandomness(bet.toBuffer());
+    const [dbcPool] = dbcHelpers.pdaPoolAddress(dbcConfig, quoteMint, baseMint);
+    const [dbcBaseVault] = dbcHelpers.pdaTokenVaultAddress(baseMint, dbcPool);
+    const [dbcQuoteVault] = dbcHelpers.pdaTokenVaultAddress(quoteMint, dbcPool);
+    const [dbcPoolAuthority] = dbcHelpers.pdaPoolAuthority();
+    const [dbcEventAuthority] = dbcHelpers.pdaEventAuthority();
+
+    // ATA
+    const userBaseTa = getAta({
+      mint: baseMint,
+      owner: sender,
+      tokenProgram: tokenBaseProgram,
+    });
+    const appQuoteAta = getAta({
+      mint: quoteMint,
+      owner: config,
+      tokenProgram: tokenQuoteProgram,
+    });
 
     const ix = await this.program.methods
-      .placeBet(...IACoinflip.convertPlaceBetArgs(args))
+      .placeBetDbc(...IACoinflip.convertPlaceBetArgs(args))
       .accountsStrict({
         systemProgram: this.SYSTEM_PROGRAM,
-        vrfProgram: oraoVrfHelpers.program.programId,
-        config,
-        bet,
+        tokenBaseProgram,
+        tokenQuoteProgram,
+        associatedTokenProgram: this.ASSOCIATED_TOKEN_PROGRAM,
         user: sender,
+        config,
+        stats,
+        bet,
+        baseMint,
+        quoteMint,
+        userBaseTa,
+        appQuoteAta,
+        dbcProgram,
+        dbcPoolAuthority,
+        dbcConfig,
+        dbcPool,
+        dbcBaseVault,
+        dbcQuoteVault,
+        dbcEventAuthority,
+        vrfProgram,
         vrfNetworkState,
         vrfTreasury,
         vrfRequest,
@@ -144,24 +206,48 @@ export class CoinflipHelpers implements IHelpers {
     const [_payer, sender] = this.getActors(txSettings);
     const signerList = this.getSigners();
 
+    const { quoteMint, vrfProgram } = await this.queryConfig();
+    const tokenQuoteProgram = await this.getTokenProgram(quoteMint);
+
     // PDA
     const [config] = this.pdaConfig();
+    const [stats] = this.pdaStats();
     const [bet] = this.pdaBet(args.user, args.betNonce);
     const [vrfRequest] = oraoVrfHelpers.pdaRandomness(bet.toBuffer());
+
+    // ATA
+    const { ixs: ataIxs, ata: userQuoteTa } = await getOrCreateAtaIxs(
+      this.provider,
+      sender,
+      quoteMint,
+      args.user,
+      tokenQuoteProgram
+    );
+    const appQuoteAta = getAta({
+      mint: quoteMint,
+      owner: config,
+      tokenProgram: tokenQuoteProgram,
+    });
 
     const ix = await this.program.methods
       .settleBet(...IACoinflip.convertSettleBetArgs(args))
       .accountsStrict({
         systemProgram: this.SYSTEM_PROGRAM,
-        vrfProgram: oraoVrfHelpers.program.programId,
-        config,
-        bet,
+        tokenQuoteProgram,
+        associatedTokenProgram: this.ASSOCIATED_TOKEN_PROGRAM,
         sender,
+        config,
+        stats,
+        bet,
+        quoteMint,
+        userQuoteTa,
+        appQuoteAta,
+        vrfProgram,
         vrfRequest,
       })
       .instruction();
 
-    return this.handleTx(signerList, [ix], txSettings);
+    return this.handleTx(signerList, [...ataIxs, ix], txSettings);
   }
 
   async queryConfig(isDisplayed: boolean = false): Promise<ConfigAccount> {
@@ -183,6 +269,13 @@ export class CoinflipHelpers implements IHelpers {
   pdaConfig(): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from("config")],
+      this.program.programId
+    );
+  }
+
+  pdaStats(): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("stats")],
       this.program.programId
     );
   }

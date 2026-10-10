@@ -32,6 +32,13 @@ export type Coinflip = {
           "address": "11111111111111111111111111111111"
         },
         {
+          "name": "tokenProgram"
+        },
+        {
+          "name": "associatedTokenProgram",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
           "name": "admin",
           "writable": true,
           "signer": true
@@ -54,31 +61,147 @@ export type Coinflip = {
               }
             ]
           }
+        },
+        {
+          "name": "stats",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  116,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "quoteMint"
+        },
+        {
+          "name": "appQuoteAta",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "config"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "quoteMint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
         }
       ],
       "args": [
         {
           "name": "worker",
           "type": "pubkey"
+        },
+        {
+          "name": "baseMint",
+          "type": "pubkey"
+        },
+        {
+          "name": "vrfProgram",
+          "type": "pubkey"
+        },
+        {
+          "name": "dbcProgram",
+          "type": "pubkey"
+        },
+        {
+          "name": "dammProgram",
+          "type": "pubkey"
+        },
+        {
+          "name": "dbcConfig",
+          "type": "pubkey"
+        },
+        {
+          "name": "minQuoteBet",
+          "type": "u64"
+        },
+        {
+          "name": "maxQuoteBet",
+          "type": "u64"
         }
       ]
     },
     {
-      "name": "placeBet",
+      "name": "placeBetDbc",
       "discriminator": [
-        222,
-        62,
-        67,
-        220,
-        63,
-        166,
-        126,
-        33
+        205,
+        139,
+        205,
+        203,
+        92,
+        195,
+        225,
+        133
       ],
       "accounts": [
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "tokenBaseProgram"
+        },
+        {
+          "name": "tokenQuoteProgram"
+        },
+        {
+          "name": "associatedTokenProgram",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
         },
         {
           "name": "user",
@@ -87,6 +210,10 @@ export type Coinflip = {
         },
         {
           "name": "config"
+        },
+        {
+          "name": "stats",
+          "writable": true
         },
         {
           "name": "bet",
@@ -110,6 +237,128 @@ export type Coinflip = {
                 "path": "betNonce"
               }
             ]
+          }
+        },
+        {
+          "name": "baseMint"
+        },
+        {
+          "name": "quoteMint"
+        },
+        {
+          "name": "userBaseTa",
+          "writable": true
+        },
+        {
+          "name": "appQuoteAta",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "config"
+              },
+              {
+                "kind": "account",
+                "path": "tokenQuoteProgram"
+              },
+              {
+                "kind": "account",
+                "path": "config.quote_mint",
+                "account": "config"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "dbcProgram"
+        },
+        {
+          "name": "dbcPoolAuthority"
+        },
+        {
+          "name": "dbcConfig"
+        },
+        {
+          "name": "dbcPool",
+          "writable": true
+        },
+        {
+          "name": "dbcBaseVault",
+          "writable": true
+        },
+        {
+          "name": "dbcQuoteVault",
+          "writable": true
+        },
+        {
+          "name": "dbcEventAuthority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "dbcProgram"
+            }
           }
         },
         {
@@ -189,6 +438,10 @@ export type Coinflip = {
               "name": "betSide"
             }
           }
+        },
+        {
+          "name": "minQuoteOut",
+          "type": "u64"
         }
       ]
     },
@@ -210,6 +463,13 @@ export type Coinflip = {
           "address": "11111111111111111111111111111111"
         },
         {
+          "name": "tokenQuoteProgram"
+        },
+        {
+          "name": "associatedTokenProgram",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
           "name": "sender",
           "docs": [
             "The sender signing the transaction (worker or user)"
@@ -218,7 +478,25 @@ export type Coinflip = {
           "signer": true
         },
         {
-          "name": "config"
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "stats"
         },
         {
           "name": "bet",
@@ -242,6 +520,71 @@ export type Coinflip = {
                 "path": "betNonce"
               }
             ]
+          }
+        },
+        {
+          "name": "quoteMint"
+        },
+        {
+          "name": "userQuoteTa",
+          "writable": true
+        },
+        {
+          "name": "appQuoteAta",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "config"
+              },
+              {
+                "kind": "account",
+                "path": "tokenQuoteProgram"
+              },
+              {
+                "kind": "account",
+                "path": "config.quote_mint",
+                "account": "config"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
           }
         },
         {
@@ -347,6 +690,19 @@ export type Coinflip = {
         191,
         226
       ]
+    },
+    {
+      "name": "stats",
+      "discriminator": [
+        190,
+        125,
+        51,
+        63,
+        169,
+        197,
+        36,
+        238
+      ]
     }
   ],
   "types": [
@@ -400,6 +756,38 @@ export type Coinflip = {
           {
             "name": "worker",
             "type": "pubkey"
+          },
+          {
+            "name": "baseMint",
+            "type": "pubkey"
+          },
+          {
+            "name": "quoteMint",
+            "type": "pubkey"
+          },
+          {
+            "name": "vrfProgram",
+            "type": "pubkey"
+          },
+          {
+            "name": "dbcProgram",
+            "type": "pubkey"
+          },
+          {
+            "name": "dammProgram",
+            "type": "pubkey"
+          },
+          {
+            "name": "dbcConfig",
+            "type": "pubkey"
+          },
+          {
+            "name": "minQuoteBet",
+            "type": "u64"
+          },
+          {
+            "name": "maxQuoteBet",
+            "type": "u64"
           }
         ]
       }
@@ -540,6 +928,22 @@ export type Coinflip = {
                 }
               }
             ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "stats",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "totalSold",
+            "type": "u64"
+          },
+          {
+            "name": "totalBought",
+            "type": "u64"
           }
         ]
       }

@@ -1,7 +1,12 @@
 use {
+    crate::uint256::U256,
     anchor_lang::prelude::*,
     base::error::AuthError,
-    coinflip_api::state::{BetSide, Config},
+    coinflip_api::{
+        state::{Config, Stats},
+        types::BetSide,
+    },
+    std::ops::{Div, Mul},
 };
 
 pub fn is_user_or_worker<'info>(
@@ -24,4 +29,12 @@ pub fn check_if_user_won(bet_side: &BetSide, randomness: [u8; 64]) -> bool {
     };
 
     &outcome == bet_side
+}
+
+pub fn calc_prize(bet_amount: u64, stats: &Stats) -> u64 {
+    U256::from(2)
+        .mul(bet_amount)
+        .mul(stats.total_bought)
+        .div(stats.total_sold)
+        .as_u64()
 }

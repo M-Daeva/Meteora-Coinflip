@@ -26,6 +26,13 @@
           "address": "11111111111111111111111111111111"
         },
         {
+          "name": "token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
           "name": "admin",
           "writable": true,
           "signer": true
@@ -48,31 +55,147 @@
               }
             ]
           }
+        },
+        {
+          "name": "stats",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  116,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "quote_mint"
+        },
+        {
+          "name": "app_quote_ata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "config"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "quote_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
         }
       ],
       "args": [
         {
           "name": "worker",
           "type": "pubkey"
+        },
+        {
+          "name": "base_mint",
+          "type": "pubkey"
+        },
+        {
+          "name": "vrf_program",
+          "type": "pubkey"
+        },
+        {
+          "name": "dbc_program",
+          "type": "pubkey"
+        },
+        {
+          "name": "damm_program",
+          "type": "pubkey"
+        },
+        {
+          "name": "dbc_config",
+          "type": "pubkey"
+        },
+        {
+          "name": "min_quote_bet",
+          "type": "u64"
+        },
+        {
+          "name": "max_quote_bet",
+          "type": "u64"
         }
       ]
     },
     {
-      "name": "place_bet",
+      "name": "place_bet_dbc",
       "discriminator": [
-        222,
-        62,
-        67,
-        220,
-        63,
-        166,
-        126,
-        33
+        205,
+        139,
+        205,
+        203,
+        92,
+        195,
+        225,
+        133
       ],
       "accounts": [
         {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_base_program"
+        },
+        {
+          "name": "token_quote_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
         },
         {
           "name": "user",
@@ -81,6 +204,10 @@
         },
         {
           "name": "config"
+        },
+        {
+          "name": "stats",
+          "writable": true
         },
         {
           "name": "bet",
@@ -104,6 +231,128 @@
                 "path": "bet_nonce"
               }
             ]
+          }
+        },
+        {
+          "name": "base_mint"
+        },
+        {
+          "name": "quote_mint"
+        },
+        {
+          "name": "user_base_ta",
+          "writable": true
+        },
+        {
+          "name": "app_quote_ata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "config"
+              },
+              {
+                "kind": "account",
+                "path": "token_quote_program"
+              },
+              {
+                "kind": "account",
+                "path": "config.quote_mint",
+                "account": "Config"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "dbc_program"
+        },
+        {
+          "name": "dbc_pool_authority"
+        },
+        {
+          "name": "dbc_config"
+        },
+        {
+          "name": "dbc_pool",
+          "writable": true
+        },
+        {
+          "name": "dbc_base_vault",
+          "writable": true
+        },
+        {
+          "name": "dbc_quote_vault",
+          "writable": true
+        },
+        {
+          "name": "dbc_event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "dbc_program"
+            }
           }
         },
         {
@@ -183,6 +432,10 @@
               "name": "BetSide"
             }
           }
+        },
+        {
+          "name": "min_quote_out",
+          "type": "u64"
         }
       ]
     },
@@ -204,6 +457,13 @@
           "address": "11111111111111111111111111111111"
         },
         {
+          "name": "token_quote_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
           "name": "sender",
           "docs": [
             "The sender signing the transaction (worker or user)"
@@ -212,7 +472,25 @@
           "signer": true
         },
         {
-          "name": "config"
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "stats"
         },
         {
           "name": "bet",
@@ -236,6 +514,71 @@
                 "path": "bet_nonce"
               }
             ]
+          }
+        },
+        {
+          "name": "quote_mint"
+        },
+        {
+          "name": "user_quote_ta",
+          "writable": true
+        },
+        {
+          "name": "app_quote_ata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "config"
+              },
+              {
+                "kind": "account",
+                "path": "token_quote_program"
+              },
+              {
+                "kind": "account",
+                "path": "config.quote_mint",
+                "account": "Config"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
           }
         },
         {
@@ -341,6 +684,19 @@
         191,
         226
       ]
+    },
+    {
+      "name": "Stats",
+      "discriminator": [
+        190,
+        125,
+        51,
+        63,
+        169,
+        197,
+        36,
+        238
+      ]
     }
   ],
   "types": [
@@ -394,6 +750,38 @@
           {
             "name": "worker",
             "type": "pubkey"
+          },
+          {
+            "name": "base_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "quote_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "vrf_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "dbc_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "damm_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "dbc_config",
+            "type": "pubkey"
+          },
+          {
+            "name": "min_quote_bet",
+            "type": "u64"
+          },
+          {
+            "name": "max_quote_bet",
+            "type": "u64"
           }
         ]
       }
@@ -534,6 +922,22 @@
                 }
               }
             ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "Stats",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "total_sold",
+            "type": "u64"
+          },
+          {
+            "name": "total_bought",
+            "type": "u64"
           }
         ]
       }

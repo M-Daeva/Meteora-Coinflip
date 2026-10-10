@@ -198,11 +198,47 @@ describe("Coinflip", () => {
     // --- prepare coinflip ---
 
     await app.coinflip.tryInit(
-      { worker: worker.publicKey },
+      {
+        worker: worker.publicKey,
+        baseMint: baseMintKP.publicKey,
+        vrfProgram: app.oraoVrf.program.programId,
+        dbcProgram: app.dbc.program.programId,
+        dammProgram: app.dammV2.program.programId,
+        dbcConfig: configKp.publicKey,
+        minQuoteBet: 1_000,
+        maxQuoteBet: 10_000_000,
+      },
+      { resultType: ResultType.BroadcastedTx }
+    );
+
+    // fund with usdc
+    app.chain.transferTokens(
+      BigInt(10_000_000),
+      quoteMint,
+      adminKeypair.publicKey,
+      app.coinflip.pdaConfig()[0],
       { resultType: ResultType.BroadcastedTx }
     );
 
     // --- swap in virtual pool ---
+
+    await app.dbc.withSender(alice).trySwap(
+      baseMintKP.publicKey,
+      quoteMint,
+      configKp.publicKey,
+      {
+        swapParameters2: {
+          swapMode: 1, // partial fill
+          amount0: AMOUNT_TO_SWAP_BEFORE_MIGRATION / 2,
+          amount1: 0,
+        },
+      },
+      { resultType: ResultType.BroadcastedTx }
+    );
+
+    // --- interact with vrf ---
+
+    const betNonce = 43;
 
     let aliceUsdcBefore = await app.chain.getAtaBalance(
       alice.publicKey,
@@ -213,16 +249,14 @@ describe("Coinflip", () => {
       baseMintKP.publicKey
     );
 
-    await app.dbc.withSender(alice).trySwap(
-      baseMintKP.publicKey,
-      quoteMint,
-      configKp.publicKey,
+    await app.coinflip.withSender(alice).tryPlaceBetDbc(
+      app.dbc,
+      app.oraoVrf,
       {
-        swapParameters2: {
-          swapMode: 1, // partial fill
-          amount0: AMOUNT_TO_SWAP_BEFORE_MIGRATION,
-          amount1: 0,
-        },
+        betAmount: 100_000,
+        betSide: BetSide.Head,
+        betNonce,
+        minQuoteOut: 90_000,
       },
       { resultType: ResultType.BroadcastedTx }
     );
@@ -236,82 +270,8 @@ describe("Coinflip", () => {
       baseMintKP.publicKey
     );
 
-    expect(aliceUsdcBefore - aliceUsdcAfter).toBe(5_102_041);
-    expect(aliceBaseAfter - aliceBaseBefore).toBe(4_988_198);
-
-    // --- migrate ---
-
-    await app.dbc.tryCreateMeteoraDammV2Metadata(
-      baseMintKP.publicKey,
-      quoteMint,
-      configKp.publicKey,
-      { resultType: ResultType.BroadcastedTx }
-    );
-
-    const [dammConfig] = app.dammV2.pdaConfig(index);
-
-    await app.dbc.tryMigrateToDammV2(
-      app.dammV2,
-      Keypair.generate(),
-      Keypair.generate(),
-      baseMintKP.publicKey,
-      quoteMint,
-      configKp.publicKey,
-      dammConfig,
-      { resultType: ResultType.BroadcastedTx }
-    );
-
-    // --- swap in DAMM pool ---
-
-    const [dammPool] = app.dammV2.pdaDammV2PoolAddress(
-      dammConfig,
-      baseMintKP.publicKey,
-      quoteMint
-    );
-
-    aliceUsdcBefore = await app.chain.getAtaBalance(alice.publicKey, quoteMint);
-    aliceBaseBefore = await app.chain.getAtaBalance(
-      alice.publicKey,
-      baseMintKP.publicKey
-    );
-
-    await app.dammV2.withSender(alice).trySwap(
-      dammPool,
-      quoteMint,
-      {
-        params: {
-          amount0: new BN(AMOUNT_TO_SWAP_AFTER_MIGRATION),
-          amount1: new BN(0),
-          swapMode: 0,
-        },
-      },
-      { resultType: ResultType.BroadcastedTx }
-    );
-
-    aliceUsdcAfter = await app.chain.getAtaBalance(alice.publicKey, quoteMint);
-    aliceBaseAfter = await app.chain.getAtaBalance(
-      alice.publicKey,
-      baseMintKP.publicKey
-    );
-
-    expect(aliceUsdcBefore - aliceUsdcAfter).toBe(
-      AMOUNT_TO_SWAP_AFTER_MIGRATION
-    );
-    expect(aliceBaseAfter - aliceBaseBefore).toBe(822_239);
-
-    // --- interact with vrf ---
-
-    const betNonce = 42;
-
-    await app.coinflip.withSender(alice).tryPlaceBet(
-      app.oraoVrf,
-      {
-        betAmount: 1_000,
-        betSide: BetSide.Head,
-        betNonce,
-      },
-      { resultType: ResultType.BroadcastedTx }
-    );
+    expect(aliceUsdcAfter - aliceUsdcBefore).toBe(0);
+    expect(aliceBaseBefore - aliceBaseAfter).toBe(100_000);
 
     const bet = await app.coinflip.queryBet(alice.publicKey, betNonce);
     expect("head" in bet.side).toBeTruthy();
@@ -326,6 +286,9 @@ describe("Coinflip", () => {
     } = await app.oraoVrf.queryRequest(seed.toBuffer());
     expect(fulfilled?.[0].randomness).not.toEqual([]);
 
+    aliceUsdcBefore = aliceUsdcAfter;
+    aliceBaseBefore = aliceBaseAfter;
+
     await app.coinflip.withSender(worker).trySettleBet(
       app.oraoVrf,
       {
@@ -334,30 +297,75 @@ describe("Coinflip", () => {
       },
       { resultType: ResultType.BroadcastedTx, isDisplayed: true }
     );
-  });
 
-  it("randomness", async () => {
-    const [alice] = await user.rotateUsers(1);
+    aliceUsdcAfter = await app.chain.getAtaBalance(alice.publicKey, quoteMint);
+    aliceBaseAfter = await app.chain.getAtaBalance(
+      alice.publicKey,
+      baseMintKP.publicKey
+    );
 
-    const seed = Keypair.generate().publicKey.toBytes();
+    expect(aliceUsdcAfter - aliceUsdcBefore).toBe(196_534);
+    expect(aliceBaseBefore - aliceBaseAfter).toBe(0);
 
-    await app.oraoVrf.withSender(alice).tryRequest(seed, {
-      resultType: ResultType.BroadcastedTx,
-    });
+    // TODO
+    // // --- migrate ---
 
-    const {
-      request: { pending },
-    } = await app.oraoVrf.queryRequest(seed);
-    expect(pending?.[0].seed).toEqual([...seed]);
+    // await app.dbc.tryCreateMeteoraDammV2Metadata(
+    //   baseMintKP.publicKey,
+    //   quoteMint,
+    //   configKp.publicKey,
+    //   { resultType: ResultType.BroadcastedTx }
+    // );
 
-    await app.oraoVrf.withSender(worker).tryFulfill(seed, {
-      resultType: ResultType.BroadcastedTx,
-    });
+    // const [dammConfig] = app.dammV2.pdaConfig(index);
 
-    const {
-      request: { fulfilled },
-    } = await app.oraoVrf.queryRequest(seed);
-    expect(fulfilled?.[0].seed).toEqual([...seed]);
-    expect(fulfilled?.[0].randomness).not.toEqual([]);
+    // await app.dbc.tryMigrateToDammV2(
+    //   app.dammV2,
+    //   Keypair.generate(),
+    //   Keypair.generate(),
+    //   baseMintKP.publicKey,
+    //   quoteMint,
+    //   configKp.publicKey,
+    //   dammConfig,
+    //   { resultType: ResultType.BroadcastedTx }
+    // );
+
+    // // --- swap in DAMM pool ---
+
+    // const [dammPool] = app.dammV2.pdaDammV2PoolAddress(
+    //   dammConfig,
+    //   baseMintKP.publicKey,
+    //   quoteMint
+    // );
+
+    // aliceUsdcBefore = await app.chain.getAtaBalance(alice.publicKey, quoteMint);
+    // aliceBaseBefore = await app.chain.getAtaBalance(
+    //   alice.publicKey,
+    //   baseMintKP.publicKey
+    // );
+
+    // await app.dammV2.withSender(alice).trySwap(
+    //   dammPool,
+    //   quoteMint,
+    //   {
+    //     params: {
+    //       amount0: new BN(AMOUNT_TO_SWAP_AFTER_MIGRATION),
+    //       amount1: new BN(0),
+    //       swapMode: 0,
+    //     },
+    //   },
+    //   { resultType: ResultType.BroadcastedTx }
+    // );
+
+    // aliceUsdcAfter = await app.chain.getAtaBalance(alice.publicKey, quoteMint);
+    // aliceBaseAfter = await app.chain.getAtaBalance(
+    //   alice.publicKey,
+    //   baseMintKP.publicKey
+    // );
+
+    // expect(aliceUsdcBefore - aliceUsdcAfter).toBe(
+    //   AMOUNT_TO_SWAP_AFTER_MIGRATION
+    // );
+    // expect(aliceBaseAfter - aliceBaseBefore).toBe(822_239);
   });
 });

@@ -9,13 +9,21 @@ export type AnchorBetSide =
   | { tail: {} };
 
 export type AnchorInitArgs = [
-  PublicKey
+  PublicKey,
+  PublicKey,
+  PublicKey,
+  PublicKey,
+  PublicKey,
+  PublicKey,
+  anchor.BN,
+  anchor.BN
 ];
 
 export type AnchorPlaceBetArgs = [
   anchor.BN,
   anchor.BN,
-  AnchorBetSide
+  AnchorBetSide,
+  anchor.BN
 ];
 
 export type AnchorSettleBetArgs = [
@@ -42,7 +50,14 @@ export function convertInitArgs(
   args: InitArgs
 ): AnchorInitArgs {
   return [
-    args.worker
+    args.worker,
+    args.baseMint,
+    args.vrfProgram,
+    args.dbcProgram,
+    args.dammProgram,
+    args.dbcConfig,
+    new anchor.BN(args.minQuoteBet),
+    new anchor.BN(args.maxQuoteBet)
   ];
 }
 
@@ -52,7 +67,8 @@ export function convertPlaceBetArgs(
   return [
     new anchor.BN(args.betNonce),
     new anchor.BN(args.betAmount),
-    convertBetSide(args.betSide)
+    convertBetSide(args.betSide),
+    new anchor.BN(args.minQuoteOut)
   ];
 }
 

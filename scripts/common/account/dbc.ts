@@ -67,7 +67,7 @@ export class DbcHelpers implements IHelpers {
 
   constructor(
     private provider: IBlockchainProvider,
-    private program: anchor.Program<DynamicBondingCurve>
+    public program: anchor.Program<DynamicBondingCurve>
   ) {
     this.defaultWallet = provider.wallet.publicKey;
     this.program = program;
@@ -416,6 +416,13 @@ export class DbcHelpers implements IHelpers {
   pdaMigrationDammV2MetadataAddress(virtualPool: PublicKey) {
     return PublicKey.findProgramAddressSync(
       [Buffer.from("damm_v2"), virtualPool.toBuffer()],
+      PROGRAM.DBC.PROGRAM_ID
+    );
+  }
+
+  pdaEventAuthority() {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("__event_authority")],
       PROGRAM.DBC.PROGRAM_ID
     );
   }
