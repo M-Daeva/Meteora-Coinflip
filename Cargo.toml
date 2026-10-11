@@ -3,7 +3,7 @@ name = "dbc-coinflip"
 edition = "2021"
 repository = "https://github.com/M-Daeva/dbc-coinflip"
 authors = []
-license = "BSL-1.1"
+license = "UNLICENSED"
 
 [workspace]
 members = ["programs/*", "packages/*"]
@@ -23,10 +23,13 @@ overflow-checks = true
 
 [workspace.dependencies]
 anchor-lang = { version = "0.31.1", features = ["init-if-needed"] }
-anchor-spl = { version = "0.31.1", features = ["token", "metadata", "memo"] }
+anchor-spl = { version = "0.31.1", features = ["token", "memo"] }
 borsh = "0.10.4"
 uint = { version = "0.10.0", default-features = false }
 solana-program = "2.2.1"
+orao-solana-vrf = { version = "0.6.1", default-features = false, features = [
+  "cpi",
+] }
 
 base = { path = "./packages/base" }
 coinflip-api = { path = "./packages/coinflip-api" }

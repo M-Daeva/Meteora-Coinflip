@@ -25,3 +25,5 @@ base = { workspace = true }
 coinflip-api = { workspace = true }
 solana-program = { workspace = true }
 uint = { workspace = true }
+# dynamic-bonding-curve = { workspace = true }
+orao-solana-vrf = { workspace = true }

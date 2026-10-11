@@ -285,23 +285,26 @@ export async function initApp(
   programsToMigrate: string[] = []
 ): Promise<App> {
   // @generated:start:initApp-body
-  const { CoinflipIdl, DbcIdl } = loadIdl();
+  const { CoinflipIdl, DbcIdl, DammV2Idl, OraoVrfIdl } = loadIdl();
   const anchorProvider = getAnchorProvider(cluster, adminKeypair);
   const provider =
     cluster === Cluster.Localnet
       ? getLiteSvmProvider(adminKeypair)
       : createProvider({ type: "real", provider: anchorProvider });
 
-  const { chain, coinflip, dbc } = getHelperSet(
+  const { chain, coinflip, dbc, dammV2, oraoVrf } = getHelperSet(
     provider,
     anchorProvider,
     CoinflipIdl,
-    DbcIdl
+    DbcIdl,
+    DammV2Idl,
+    OraoVrfIdl
   );
 
   if (provider instanceof LiteSvmProvider) {
     try {
       await initEnvWithBalances(provider, chain, programsToMigrate);
+
     } catch (e) {
       li(e);
     }
@@ -312,6 +315,8 @@ export async function initApp(
     chain,
     coinflip,
     dbc,
+    dammV2,
+    oraoVrf,
     token: getTokenPubkeySet(cluster),
   };
   // @generated:end:initApp-body
