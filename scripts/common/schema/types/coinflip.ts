@@ -336,8 +336,7 @@ export type Coinflip = {
           "name": "dammEventAuthority"
         },
         {
-          "name": "vrfProgram",
-          "address": "VRFzZoJdhFWL8rkvu87LpKM3RbcVezpMEc6X5GVDr7y"
+          "name": "vrfProgram"
         },
         {
           "name": "vrfNetworkState",
@@ -575,8 +574,7 @@ export type Coinflip = {
           "name": "dbcEventAuthority"
         },
         {
-          "name": "vrfProgram",
-          "address": "VRFzZoJdhFWL8rkvu87LpKM3RbcVezpMEc6X5GVDr7y"
+          "name": "vrfProgram"
         },
         {
           "name": "vrfNetworkState",

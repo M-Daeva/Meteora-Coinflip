@@ -1,16 +1,15 @@
 use {
     crate::{
-        cpi::{damm_cpi, vrf_cpi},
-        helpers::{max_key, min_key},
+        cpi::damm_cpi,
+        helpers::{handle_common_place_bet_logic, max_key, min_key},
     },
     anchor_lang::prelude::*,
     anchor_spl::{
         associated_token::AssociatedToken,
         token_interface::{Mint, TokenAccount, TokenInterface},
     },
-    base::helpers::{get_clock_time, get_space},
+    base::helpers::get_space,
     coinflip_api::{
-        error::CustomError,
         state::{Bet, Config, Stats, SEED_BET, SEED_DAMM_POOL},
         types::BetSide,
     },
@@ -101,8 +100,9 @@ pub struct PlaceBetDamm<'info> {
     pub damm_event_authority: UncheckedAccount<'info>,
 
     // === VRF ===
+    /// CHECK: config
     #[account(address = config.vrf_program)]
-    pub vrf_program: Program<'info, orao_solana_vrf::program::OraoVrf>,
+    pub vrf_program: UncheckedAccount<'info>,
 
     /// CHECK: VRF program
     #[account(mut)]
@@ -130,54 +130,23 @@ impl<'info> PlaceBetDamm<'info> {
         bet_side: BetSide,
         min_quote_out: u64,
     ) -> Result<()> {
-        let Self {
-            system_program,
-            token_base_program,
-            token_quote_program,
-            user,
-            config,
-            stats,
-            bet,
-            base_mint,
-            quote_mint,
-            user_base_ta,
-            app_quote_ata,
-            damm_program,
-            damm_pool_authority,
-            damm_pool,
-            damm_base_vault,
-            damm_quote_vault,
-            damm_event_authority,
-            vrf_program,
-            vrf_network_state,
-            vrf_treasury,
-            vrf_request,
-            ..
-        } = self;
-
-        if bet_amount == 0 {
-            Err(CustomError::ZeroAmount)?;
-        }
-
         // swap base -> USDC straight into the app ATA
         // migrated pool: token A = base, token B = quote;
         // DAMM infers direction (A -> B) from the input token account mint
-        let app_quote_balance_before = app_quote_ata.amount;
-
         damm_cpi::swap2(
-            &damm_program,
-            &damm_pool_authority,
-            &damm_pool,
-            &user_base_ta.to_account_info(),
-            &app_quote_ata.to_account_info(),
-            &damm_base_vault,
-            &damm_quote_vault,
-            &base_mint.to_account_info(),
-            &quote_mint.to_account_info(),
-            &user,
-            &token_base_program.to_account_info(),
-            &token_quote_program.to_account_info(),
-            &damm_event_authority,
+            &self.damm_program,
+            &self.damm_pool_authority,
+            &self.damm_pool,
+            &self.user_base_ta.to_account_info(),
+            &self.app_quote_ata.to_account_info(),
+            &self.damm_base_vault,
+            &self.damm_quote_vault,
+            &self.base_mint.to_account_info(),
+            &self.quote_mint.to_account_info(),
+            &self.user,
+            &self.token_base_program.to_account_info(),
+            &self.token_quote_program.to_account_info(),
+            &self.damm_event_authority,
             damm_cpi::Swap2Args {
                 amount_0: bet_amount,
                 amount_1: min_quote_out,
@@ -185,42 +154,20 @@ impl<'info> PlaceBetDamm<'info> {
             },
         )?;
 
-        // measure the USDC balance difference
-        app_quote_ata.reload()?;
-        let app_quote_balance_diff = app_quote_ata.amount - app_quote_balance_before;
-
-        if app_quote_balance_diff < min_quote_out {
-            Err(CustomError::SlippageExceeded)?;
-        }
-
-        if app_quote_balance_diff < config.min_quote_bet {
-            Err(CustomError::BetIsTooSmall)?;
-        }
-
-        if app_quote_balance_diff > config.max_quote_bet {
-            Err(CustomError::BetIsTooLarge)?;
-        }
-
-        // store the bet
-        bet.set_inner(Bet {
-            amount: bet_amount,
-            side: bet_side,
-            created_at: get_clock_time()?,
-        });
-
-        // update stats to calculate user's prize later
-        stats.total_sold += bet_amount;
-        stats.total_bought += app_quote_balance_diff;
-
-        // request randomness seeded by the bet address
-        vrf_cpi::request_randomness(
-            system_program,
-            user,
-            vrf_program,
-            vrf_network_state,
-            vrf_treasury,
-            vrf_request,
-            bet.key().to_bytes(),
+        handle_common_place_bet_logic(
+            &self.system_program,
+            &self.user,
+            &self.vrf_program,
+            &self.vrf_network_state,
+            &self.vrf_treasury,
+            &self.vrf_request,
+            &self.config,
+            &mut self.bet,
+            &mut self.stats,
+            &mut self.app_quote_ata,
+            bet_amount,
+            bet_side,
+            min_quote_out,
         )
     }
 }

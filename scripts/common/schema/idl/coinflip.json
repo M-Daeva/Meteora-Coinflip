@@ -330,8 +330,7 @@
           "name": "damm_event_authority"
         },
         {
-          "name": "vrf_program",
-          "address": "VRFzZoJdhFWL8rkvu87LpKM3RbcVezpMEc6X5GVDr7y"
+          "name": "vrf_program"
         },
         {
           "name": "vrf_network_state",
@@ -569,8 +568,7 @@
           "name": "dbc_event_authority"
         },
         {
-          "name": "vrf_program",
-          "address": "VRFzZoJdhFWL8rkvu87LpKM3RbcVezpMEc6X5GVDr7y"
+          "name": "vrf_program"
         },
         {
           "name": "vrf_network_state",
