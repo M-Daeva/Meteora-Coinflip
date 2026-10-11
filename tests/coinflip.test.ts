@@ -59,13 +59,15 @@ describe("Coinflip", () => {
     const permission = new BN(1).shln(CREATE_CONFIG_KEY);
     const index = new BN(0);
 
+    const [dammConfig] = app.dammV2.pdaConfig(index);
+    const [poolAuthority] = app.dbc.pdaPoolAuthority();
+
     await app.dammV2.tryCreateOperatorAccount(
       adminKeypair.publicKey, // the address that will later call createConfig
       permission,
       { resultType: ResultType.BroadcastedTx }
     );
 
-    const [poolAuthority] = app.dbc.pdaPoolAuthority();
     await app.dammV2.tryCreateDynamicConfig(
       index,
       {
@@ -205,6 +207,7 @@ describe("Coinflip", () => {
         dbcProgram: app.dbc.program.programId,
         dammProgram: app.dammV2.program.programId,
         dbcConfig: configKp.publicKey,
+        dammConfig,
         minQuoteBet: 1_000,
         maxQuoteBet: 10_000_000,
       },
@@ -212,7 +215,7 @@ describe("Coinflip", () => {
     );
 
     // fund with usdc
-    app.chain.transferTokens(
+    await app.chain.transferTokens(
       BigInt(10_000_000),
       quoteMint,
       adminKeypair.publicKey,
@@ -295,7 +298,7 @@ describe("Coinflip", () => {
         betNonce,
         user: alice.publicKey,
       },
-      { resultType: ResultType.BroadcastedTx, isDisplayed: true }
+      { resultType: ResultType.BroadcastedTx }
     );
 
     aliceUsdcAfter = await app.chain.getAtaBalance(alice.publicKey, quoteMint);

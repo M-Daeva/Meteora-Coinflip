@@ -167,6 +167,10 @@ export type Coinflip = {
           "type": "pubkey"
         },
         {
+          "name": "dammConfig",
+          "type": "pubkey"
+        },
+        {
           "name": "minQuoteBet",
           "type": "u64"
         },
@@ -779,6 +783,10 @@ export type Coinflip = {
           },
           {
             "name": "dbcConfig",
+            "type": "pubkey"
+          },
+          {
+            "name": "dammConfig",
             "type": "pubkey"
           },
           {

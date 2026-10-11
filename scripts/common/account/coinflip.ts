@@ -6,6 +6,7 @@ import { IdlAccounts } from "@coral-xyz/anchor";
 import { Coinflip } from "../schema/types/coinflip";
 import { AppToken, getMintByAppToken } from "../config";
 import { OraoVrfHelpers } from "./orao-vrf";
+import { DbcHelpers } from "./dbc";
 import {
   PublicKey,
   TransactionInstruction as Ix,
@@ -28,7 +29,6 @@ import {
 
 import * as ICoinflip from "../interfaces/coinflip";
 import * as IACoinflip from "../interfaces/coinflip.anchor";
-import { DbcHelpers } from "./dbc";
 
 type CoinflipAccount<T extends keyof IdlAccounts<Coinflip>> =
   IdlAccounts<Coinflip>[T];

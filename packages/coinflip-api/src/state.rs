@@ -26,11 +26,12 @@ pub struct Config {
     pub admin: Pubkey,
     pub worker: Pubkey,
     pub base_mint: Pubkey,
-    pub quote_mint: Pubkey, // usdc
+    pub quote_mint: Pubkey,
     pub vrf_program: Pubkey,
     pub dbc_program: Pubkey,
     pub damm_program: Pubkey,
     pub dbc_config: Pubkey,
+    pub damm_config: Pubkey,
     pub min_quote_bet: u64,
     pub max_quote_bet: u64,
 }

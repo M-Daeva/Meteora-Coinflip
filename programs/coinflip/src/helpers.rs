@@ -38,3 +38,11 @@ pub fn calc_prize(bet_amount: u64, stats: &Stats) -> u64 {
         .div(stats.total_sold)
         .as_u64()
 }
+
+pub fn max_key(a: &Pubkey, b: &Pubkey) -> [u8; 32] {
+    std::cmp::max(a, b).to_bytes()
+}
+
+pub fn min_key(a: &Pubkey, b: &Pubkey) -> [u8; 32] {
+    std::cmp::min(a, b).to_bytes()
+}

@@ -161,6 +161,10 @@
           "type": "pubkey"
         },
         {
+          "name": "damm_config",
+          "type": "pubkey"
+        },
+        {
           "name": "min_quote_bet",
           "type": "u64"
         },
@@ -773,6 +777,10 @@
           },
           {
             "name": "dbc_config",
+            "type": "pubkey"
+          },
+          {
+            "name": "damm_config",
             "type": "pubkey"
           },
           {

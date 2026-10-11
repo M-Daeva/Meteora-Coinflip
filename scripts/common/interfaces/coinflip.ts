@@ -8,6 +8,7 @@ export interface InitArgs {
   dbcProgram: PublicKey;
   dammProgram: PublicKey;
   dbcConfig: PublicKey;
+  dammConfig: PublicKey;
   minQuoteBet: N<64>;
   maxQuoteBet: N<64>;
 }

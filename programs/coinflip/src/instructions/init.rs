@@ -70,6 +70,7 @@ impl<'info> Init<'info> {
         dbc_program: Pubkey,
         damm_program: Pubkey,
         dbc_config: Pubkey,
+        damm_config: Pubkey,
         min_quote_bet: u64,
         max_quote_bet: u64,
     ) -> Result<()> {
@@ -98,6 +99,7 @@ impl<'info> Init<'info> {
             dbc_program,
             damm_program,
             dbc_config,
+            damm_config,
             min_quote_bet,
             max_quote_bet,
         });

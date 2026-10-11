@@ -15,6 +15,7 @@ export type AnchorInitArgs = [
   PublicKey,
   PublicKey,
   PublicKey,
+  PublicKey,
   anchor.BN,
   anchor.BN
 ];
@@ -56,6 +57,7 @@ export function convertInitArgs(
     args.dbcProgram,
     args.dammProgram,
     args.dbcConfig,
+    args.dammConfig,
     new anchor.BN(args.minQuoteBet),
     new anchor.BN(args.maxQuoteBet)
   ];

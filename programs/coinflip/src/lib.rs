@@ -1,5 +1,6 @@
 #![allow(unexpected_cfgs)]
 
+pub mod damm_cpi;
 pub mod dbc_cpi;
 pub mod helpers;
 pub mod instructions;
@@ -27,6 +28,7 @@ pub mod coinflip {
         dbc_program: Pubkey,
         damm_program: Pubkey,
         dbc_config: Pubkey,
+        damm_config: Pubkey,
         min_quote_bet: u64,
         max_quote_bet: u64,
     ) -> Result<()> {
@@ -37,6 +39,7 @@ pub mod coinflip {
             dbc_program,
             damm_program,
             dbc_config,
+            damm_config,
             min_quote_bet,
             max_quote_bet,
         )
