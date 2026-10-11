@@ -1,5 +1,9 @@
 use {
-    crate::{dbc_cpi, vrf_cpi::request_randomness},
+    crate::{
+        damm_cpi,
+        helpers::{max_key, min_key},
+        vrf_cpi::request_randomness,
+    },
     anchor_lang::prelude::*,
     anchor_spl::{
         associated_token::AssociatedToken,
@@ -8,7 +12,7 @@ use {
     base::helpers::{get_clock_time, get_space},
     coinflip_api::{
         error::CustomError,
-        state::{Bet, Config, Stats, SEED_BET, SEED_EVENT_AUTHORITY},
+        state::{Bet, Config, Stats, SEED_BET, SEED_DAMM_POOL},
         types::BetSide,
     },
     orao_solana_vrf,
@@ -63,36 +67,39 @@ pub struct PlaceBetDamm<'info> {
     )]
     pub app_quote_ata: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    // === DBC ===
+    // === DAMM v2 ===
     /// CHECK: address-checked
-    #[account(address = config.dbc_program)]
-    pub dbc_program: UncheckedAccount<'info>,
+    #[account(address = config.damm_program)]
+    pub damm_program: UncheckedAccount<'info>,
 
-    /// CHECK: validated by DBC
-    pub dbc_pool_authority: UncheckedAccount<'info>,
+    /// CHECK: validated by DAMM
+    pub damm_pool_authority: UncheckedAccount<'info>,
 
-    /// CHECK: validated by DBC (pool has_one config)
-    pub dbc_config: UncheckedAccount<'info>,
-
-    /// CHECK: validated by DBC
-    #[account(mut)]
-    pub dbc_pool: UncheckedAccount<'info>,
-
-    /// CHECK: validated by DBC
-    #[account(mut)]
-    pub dbc_base_vault: UncheckedAccount<'info>,
-
-    /// CHECK: validated by DBC
-    #[account(mut)]
-    pub dbc_quote_vault: UncheckedAccount<'info>,
-
-    /// CHECK: DBC event authority PDA
+    /// CHECK: must be the pool created by DBC migration (config only DBC can create pools in);
+    /// layout/vaults/mints validated by DAMM
     #[account(
-        seeds = [SEED_EVENT_AUTHORITY],
+        mut,
+        seeds = [
+            SEED_DAMM_POOL,
+            config.damm_config.as_ref(),
+            &max_key(&config.base_mint, &config.quote_mint),
+            &min_key(&config.base_mint, &config.quote_mint),
+        ],
         bump,
-        seeds::program = dbc_program
+        seeds::program = damm_program
     )]
-    pub dbc_event_authority: UncheckedAccount<'info>,
+    pub damm_pool: UncheckedAccount<'info>,
+
+    /// CHECK: token A vault (base), validated by DAMM (pool has_one)
+    #[account(mut)]
+    pub damm_base_vault: UncheckedAccount<'info>,
+
+    /// CHECK: token B vault (quote), validated by DAMM (pool has_one)
+    #[account(mut)]
+    pub damm_quote_vault: UncheckedAccount<'info>,
+
+    /// CHECK: validated by DAMM
+    pub damm_event_authority: UncheckedAccount<'info>,
 
     // === VRF ===
     #[account(address = config.vrf_program)]
@@ -136,13 +143,12 @@ impl<'info> PlaceBetDamm<'info> {
             quote_mint,
             user_base_ta,
             app_quote_ata,
-            dbc_program,
-            dbc_pool_authority,
-            dbc_config,
-            dbc_pool,
-            dbc_base_vault,
-            dbc_quote_vault,
-            dbc_event_authority,
+            damm_program,
+            damm_pool_authority,
+            damm_pool,
+            damm_base_vault,
+            damm_quote_vault,
+            damm_event_authority,
             vrf_program,
             vrf_network_state,
             vrf_treasury,
@@ -155,27 +161,28 @@ impl<'info> PlaceBetDamm<'info> {
         }
 
         // swap base -> USDC straight into the app ATA
+        // migrated pool: token A = base, token B = quote;
+        // DAMM infers direction (A -> B) from the input token account mint
         let app_quote_balance_before = app_quote_ata.amount;
 
-        dbc_cpi::swap2(
-            &dbc_program,
-            &dbc_pool_authority,
-            &dbc_config,
-            &dbc_pool,
+        damm_cpi::swap2(
+            &damm_program,
+            &damm_pool_authority,
+            &damm_pool,
             &user_base_ta.to_account_info(),
             &app_quote_ata.to_account_info(),
-            &dbc_base_vault,
-            &dbc_quote_vault,
+            &damm_base_vault,
+            &damm_quote_vault,
             &base_mint.to_account_info(),
             &quote_mint.to_account_info(),
             &user,
             &token_base_program.to_account_info(),
             &token_quote_program.to_account_info(),
-            &dbc_event_authority,
-            dbc_cpi::Swap2Args {
+            &damm_event_authority,
+            damm_cpi::Swap2Args {
                 amount_0: bet_amount,
                 amount_1: min_quote_out,
-                swap_mode: dbc_cpi::swap_mode::EXACT_IN,
+                swap_mode: damm_cpi::swap_mode::EXACT_IN,
             },
         )?;
 

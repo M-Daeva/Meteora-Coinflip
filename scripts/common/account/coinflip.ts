@@ -7,6 +7,7 @@ import { Coinflip } from "../schema/types/coinflip";
 import { AppToken, getMintByAppToken } from "../config";
 import { OraoVrfHelpers } from "./orao-vrf";
 import { DbcHelpers } from "./dbc";
+import { DammV2Helpers } from "./damm-v2";
 import {
   PublicKey,
   TransactionInstruction as Ix,
@@ -188,6 +189,95 @@ export class CoinflipHelpers implements IHelpers {
         dbcBaseVault,
         dbcQuoteVault,
         dbcEventAuthority,
+        vrfProgram,
+        vrfNetworkState,
+        vrfTreasury,
+        vrfRequest,
+      })
+      .instruction();
+
+    return this.handleTx(signerList, [ix], txSettings);
+  }
+
+  async tryPlaceBetDamm(
+    dammV2Helpers: DammV2Helpers,
+    oraoVrfHelpers: OraoVrfHelpers,
+    args: ICoinflip.PlaceBetArgs,
+    txSettings: TxSettings = {}
+  ): Promise<ParsedTransactionWithMeta | Ix[] | string> {
+    const [_payer, sender] = this.getActors(txSettings);
+    const signerList = this.getSigners();
+
+    const [
+      { baseMint, quoteMint, dammProgram, vrfProgram, dammConfig },
+      {
+        config: { treasury: vrfTreasury },
+      },
+    ] = await Promise.all([
+      this.queryConfig(),
+      oraoVrfHelpers.queryNetworkState(),
+    ]);
+
+    const [tokenBaseProgram, tokenQuoteProgram] = await Promise.all([
+      this.getTokenProgram(baseMint),
+      this.getTokenProgram(quoteMint),
+    ]);
+
+    // PDA
+    const [config] = this.pdaConfig();
+    const [stats] = this.pdaStats();
+    const [bet] = this.pdaBet(sender, args.betNonce);
+    const [vrfNetworkState] = oraoVrfHelpers.pdaNetworkState();
+    const [vrfRequest] = oraoVrfHelpers.pdaRandomness(bet.toBuffer());
+    const [dammPool] = dammV2Helpers.pdaDammV2PoolAddress(
+      dammConfig,
+      baseMint,
+      quoteMint
+    );
+    const [dammBaseVault] = dammV2Helpers.pdaDammV2TokenVault(
+      baseMint,
+      dammPool
+    );
+    const [dammQuoteVault] = dammV2Helpers.pdaDammV2TokenVault(
+      quoteMint,
+      dammPool
+    );
+    const [dammPoolAuthority] = dammV2Helpers.pdaDammV2PoolAuthority();
+    const [dammEventAuthority] = dammV2Helpers.pdaDammV2EventAuthority();
+
+    // ATA
+    const userBaseTa = getAta({
+      mint: baseMint,
+      owner: sender,
+      tokenProgram: tokenBaseProgram,
+    });
+    const appQuoteAta = getAta({
+      mint: quoteMint,
+      owner: config,
+      tokenProgram: tokenQuoteProgram,
+    });
+
+    const ix = await this.program.methods
+      .placeBetDamm(...IACoinflip.convertPlaceBetArgs(args))
+      .accountsStrict({
+        systemProgram: this.SYSTEM_PROGRAM,
+        tokenBaseProgram,
+        tokenQuoteProgram,
+        associatedTokenProgram: this.ASSOCIATED_TOKEN_PROGRAM,
+        user: sender,
+        config,
+        stats,
+        bet,
+        baseMint,
+        quoteMint,
+        userBaseTa,
+        appQuoteAta,
+        dammProgram,
+        dammPoolAuthority,
+        dammPool,
+        dammBaseVault,
+        dammQuoteVault,
+        dammEventAuthority,
         vrfProgram,
         vrfNetworkState,
         vrfTreasury,

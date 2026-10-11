@@ -18,7 +18,7 @@ pub const SEED_CONFIG: &str = "config";
 pub const SEED_STATS: &str = "stats";
 pub const SEED_BET: &str = "bet";
 
-pub const SEED_EVENT_AUTHORITY: &[u8] = b"__event_authority";
+pub const SEED_DAMM_POOL: &[u8] = b"pool";
 
 #[account]
 #[derive(InitSpace, PartialEq, Debug)]

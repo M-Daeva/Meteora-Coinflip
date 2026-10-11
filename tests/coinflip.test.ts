@@ -239,9 +239,10 @@ describe("Coinflip", () => {
       { resultType: ResultType.BroadcastedTx }
     );
 
-    // --- interact with vrf ---
+    // --- bet via dbc ---
 
-    const betNonce = 43;
+    const dbcBetNonce = 43;
+    const dbcBetAmount = 100_000;
 
     let aliceUsdcBefore = await app.chain.getAtaBalance(
       alice.publicKey,
@@ -256,9 +257,9 @@ describe("Coinflip", () => {
       app.dbc,
       app.oraoVrf,
       {
-        betAmount: 100_000,
+        betAmount: dbcBetAmount,
         betSide: BetSide.Head,
-        betNonce,
+        betNonce: dbcBetNonce,
         minQuoteOut: 90_000,
       },
       { resultType: ResultType.BroadcastedTx }
@@ -274,12 +275,12 @@ describe("Coinflip", () => {
     );
 
     expect(aliceUsdcAfter - aliceUsdcBefore).toBe(0);
-    expect(aliceBaseBefore - aliceBaseAfter).toBe(100_000);
+    expect(aliceBaseBefore - aliceBaseAfter).toBe(dbcBetAmount);
 
-    const bet = await app.coinflip.queryBet(alice.publicKey, betNonce);
+    const bet = await app.coinflip.queryBet(alice.publicKey, dbcBetNonce);
     expect("head" in bet.side).toBeTruthy();
 
-    const [seed] = app.coinflip.pdaBet(alice.publicKey, betNonce);
+    const [seed] = app.coinflip.pdaBet(alice.publicKey, dbcBetNonce);
     await app.oraoVrf.withSender(worker).tryFulfill(seed.toBuffer(), {
       resultType: ResultType.BroadcastedTx,
     });
@@ -295,7 +296,7 @@ describe("Coinflip", () => {
     await app.coinflip.withSender(worker).trySettleBet(
       app.oraoVrf,
       {
-        betNonce,
+        betNonce: dbcBetNonce,
         user: alice.publicKey,
       },
       { resultType: ResultType.BroadcastedTx }
@@ -310,65 +311,96 @@ describe("Coinflip", () => {
     expect(aliceUsdcAfter - aliceUsdcBefore).toBe(196_534);
     expect(aliceBaseBefore - aliceBaseAfter).toBe(0);
 
-    // TODO
-    // // --- migrate ---
+    // --- migrate ---
 
-    // await app.dbc.tryCreateMeteoraDammV2Metadata(
-    //   baseMintKP.publicKey,
-    //   quoteMint,
-    //   configKp.publicKey,
-    //   { resultType: ResultType.BroadcastedTx }
-    // );
+    // complete the curve
+    await app.dbc.withSender(alice).trySwap(
+      baseMintKP.publicKey,
+      quoteMint,
+      configKp.publicKey,
+      {
+        swapParameters2: {
+          swapMode: 1, // partial fill
+          amount0: AMOUNT_TO_SWAP_BEFORE_MIGRATION,
+          amount1: 0,
+        },
+      },
+      { resultType: ResultType.BroadcastedTx }
+    );
 
-    // const [dammConfig] = app.dammV2.pdaConfig(index);
+    await app.dbc.tryCreateMeteoraDammV2Metadata(
+      baseMintKP.publicKey,
+      quoteMint,
+      configKp.publicKey,
+      { resultType: ResultType.BroadcastedTx }
+    );
 
-    // await app.dbc.tryMigrateToDammV2(
-    //   app.dammV2,
-    //   Keypair.generate(),
-    //   Keypair.generate(),
-    //   baseMintKP.publicKey,
-    //   quoteMint,
-    //   configKp.publicKey,
-    //   dammConfig,
-    //   { resultType: ResultType.BroadcastedTx }
-    // );
+    await app.dbc.tryMigrateToDammV2(
+      app.dammV2,
+      Keypair.generate(),
+      Keypair.generate(),
+      baseMintKP.publicKey,
+      quoteMint,
+      configKp.publicKey,
+      dammConfig,
+      { resultType: ResultType.BroadcastedTx }
+    );
 
-    // // --- swap in DAMM pool ---
+    // --- bet via damm ---
 
-    // const [dammPool] = app.dammV2.pdaDammV2PoolAddress(
-    //   dammConfig,
-    //   baseMintKP.publicKey,
-    //   quoteMint
-    // );
+    const dammBetNonce = 44;
+    const dammBetAmount = 100_000;
 
-    // aliceUsdcBefore = await app.chain.getAtaBalance(alice.publicKey, quoteMint);
-    // aliceBaseBefore = await app.chain.getAtaBalance(
-    //   alice.publicKey,
-    //   baseMintKP.publicKey
-    // );
+    aliceUsdcBefore = await app.chain.getAtaBalance(alice.publicKey, quoteMint);
+    aliceBaseBefore = await app.chain.getAtaBalance(
+      alice.publicKey,
+      baseMintKP.publicKey
+    );
 
-    // await app.dammV2.withSender(alice).trySwap(
-    //   dammPool,
-    //   quoteMint,
-    //   {
-    //     params: {
-    //       amount0: new BN(AMOUNT_TO_SWAP_AFTER_MIGRATION),
-    //       amount1: new BN(0),
-    //       swapMode: 0,
-    //     },
-    //   },
-    //   { resultType: ResultType.BroadcastedTx }
-    // );
+    await app.coinflip.withSender(alice).tryPlaceBetDamm(
+      app.dammV2,
+      app.oraoVrf,
+      {
+        betAmount: dammBetAmount,
+        betSide: BetSide.Tail,
+        betNonce: dammBetNonce,
+        minQuoteOut: 90_000,
+      },
+      { resultType: ResultType.BroadcastedTx }
+    );
 
-    // aliceUsdcAfter = await app.chain.getAtaBalance(alice.publicKey, quoteMint);
-    // aliceBaseAfter = await app.chain.getAtaBalance(
-    //   alice.publicKey,
-    //   baseMintKP.publicKey
-    // );
+    aliceUsdcAfter = await app.chain.getAtaBalance(alice.publicKey, quoteMint);
+    aliceBaseAfter = await app.chain.getAtaBalance(
+      alice.publicKey,
+      baseMintKP.publicKey
+    );
 
-    // expect(aliceUsdcBefore - aliceUsdcAfter).toBe(
-    //   AMOUNT_TO_SWAP_AFTER_MIGRATION
-    // );
-    // expect(aliceBaseAfter - aliceBaseBefore).toBe(822_239);
+    expect(aliceUsdcAfter - aliceUsdcBefore).toBe(0);
+    expect(aliceBaseBefore - aliceBaseAfter).toBe(dammBetAmount);
+
+    const [dammSeed] = app.coinflip.pdaBet(alice.publicKey, dammBetNonce);
+    await app.oraoVrf.withSender(worker).tryFulfill(dammSeed.toBuffer(), {
+      resultType: ResultType.BroadcastedTx,
+    });
+
+    aliceUsdcBefore = aliceUsdcAfter;
+    aliceBaseBefore = aliceBaseAfter;
+
+    await app.coinflip
+      .withSender(worker)
+      .trySettleBet(
+        app.oraoVrf,
+        { betNonce: dammBetNonce, user: alice.publicKey },
+        { resultType: ResultType.BroadcastedTx }
+      );
+
+    aliceUsdcAfter = await app.chain.getAtaBalance(alice.publicKey, quoteMint);
+    aliceBaseAfter = await app.chain.getAtaBalance(
+      alice.publicKey,
+      baseMintKP.publicKey
+    );
+
+    expect(aliceUsdcAfter - aliceUsdcBefore).toBe(195_769);
+    expect(aliceBaseBefore - aliceBaseAfter).toBe(0);
   });
 });

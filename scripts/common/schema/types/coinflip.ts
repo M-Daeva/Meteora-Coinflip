@@ -181,6 +181,245 @@ export type Coinflip = {
       ]
     },
     {
+      "name": "placeBetDamm",
+      "discriminator": [
+        41,
+        183,
+        38,
+        5,
+        134,
+        244,
+        232,
+        155
+      ],
+      "accounts": [
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "tokenBaseProgram"
+        },
+        {
+          "name": "tokenQuoteProgram"
+        },
+        {
+          "name": "associatedTokenProgram",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config"
+        },
+        {
+          "name": "stats",
+          "writable": true
+        },
+        {
+          "name": "bet",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "arg",
+                "path": "betNonce"
+              }
+            ]
+          }
+        },
+        {
+          "name": "baseMint"
+        },
+        {
+          "name": "quoteMint"
+        },
+        {
+          "name": "userBaseTa",
+          "writable": true
+        },
+        {
+          "name": "appQuoteAta",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "config"
+              },
+              {
+                "kind": "account",
+                "path": "tokenQuoteProgram"
+              },
+              {
+                "kind": "account",
+                "path": "config.quote_mint",
+                "account": "config"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "dammProgram"
+        },
+        {
+          "name": "dammPoolAuthority"
+        },
+        {
+          "name": "dammPool",
+          "docs": [
+            "layout/vaults/mints validated by DAMM"
+          ],
+          "writable": true
+        },
+        {
+          "name": "dammBaseVault",
+          "writable": true
+        },
+        {
+          "name": "dammQuoteVault",
+          "writable": true
+        },
+        {
+          "name": "dammEventAuthority"
+        },
+        {
+          "name": "vrfProgram",
+          "address": "VRFzZoJdhFWL8rkvu87LpKM3RbcVezpMEc6X5GVDr7y"
+        },
+        {
+          "name": "vrfNetworkState",
+          "writable": true
+        },
+        {
+          "name": "vrfTreasury",
+          "writable": true
+        },
+        {
+          "name": "vrfRequest",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  97,
+                  111,
+                  45,
+                  118,
+                  114,
+                  102,
+                  45,
+                  114,
+                  97,
+                  110,
+                  100,
+                  111,
+                  109,
+                  110,
+                  101,
+                  115,
+                  115,
+                  45,
+                  114,
+                  101,
+                  113,
+                  117,
+                  101,
+                  115,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "bet"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "vrfProgram"
+            }
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "betNonce",
+          "type": "u64"
+        },
+        {
+          "name": "betAmount",
+          "type": "u64"
+        },
+        {
+          "name": "betSide",
+          "type": {
+            "defined": {
+              "name": "betSide"
+            }
+          }
+        },
+        {
+          "name": "minQuoteOut",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "placeBetDbc",
       "discriminator": [
         205,
@@ -333,37 +572,7 @@ export type Coinflip = {
           "writable": true
         },
         {
-          "name": "dbcEventAuthority",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  95,
-                  95,
-                  101,
-                  118,
-                  101,
-                  110,
-                  116,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104,
-                  111,
-                  114,
-                  105,
-                  116,
-                  121
-                ]
-              }
-            ],
-            "program": {
-              "kind": "account",
-              "path": "dbcProgram"
-            }
-          }
+          "name": "dbcEventAuthority"
         },
         {
           "name": "vrfProgram",

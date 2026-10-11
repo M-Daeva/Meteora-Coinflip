@@ -8,7 +8,7 @@ use {
     base::helpers::{get_clock_time, get_space},
     coinflip_api::{
         error::CustomError,
-        state::{Bet, Config, Stats, SEED_BET, SEED_EVENT_AUTHORITY},
+        state::{Bet, Config, Stats, SEED_BET},
         types::BetSide,
     },
     orao_solana_vrf,
@@ -86,12 +86,7 @@ pub struct PlaceBetDbc<'info> {
     #[account(mut)]
     pub dbc_quote_vault: UncheckedAccount<'info>,
 
-    /// CHECK: DBC event authority PDA
-    #[account(
-        seeds = [SEED_EVENT_AUTHORITY],
-        bump,
-        seeds::program = dbc_program
-    )]
+    /// CHECK: validated by DBC
     pub dbc_event_authority: UncheckedAccount<'info>,
 
     // === VRF ===
