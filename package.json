@@ -1,5 +1,5 @@
 {
-  "name": "dbc-coinflip",
+  "name": "Meteora-Coinflip",
   "version": "1.0.0",
   "description": "",
   "main": "./scripts/backend/app.ts",
@@ -22,15 +22,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/M-Daeva/dbc-coinflip"
+    "url": "git+https://github.com/M-Daeva/Meteora-Coinflip"
   },
   "keywords": [],
   "author": "M. Daeva",
   "license": "UNLICENSED",
   "bugs": {
-    "url": "https://github.com/M-Daeva/dbc-coinflip/issues"
+    "url": "https://github.com/M-Daeva/Meteora-Coinflip/issues"
   },
-  "homepage": "https://github.com/M-Daeva/dbc-coinflip#readme",
+  "homepage": "https://github.com/M-Daeva/Meteora-Coinflip#readme",
   "dependencies": {
     "@coral-xyz/anchor": "0.30.1",
     "@noble/ciphers": "^1.3.0",

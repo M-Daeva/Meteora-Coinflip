@@ -11,7 +11,7 @@ export type Coinflip = {
     "version": "1.0.0",
     "spec": "0.1.0",
     "description": "Created with Anchor",
-    "repository": "https://github.com/M-Daeva/dbc-coinflip"
+    "repository": "https://github.com/M-Daeva/Meteora-Coinflip"
   },
   "instructions": [
     {
