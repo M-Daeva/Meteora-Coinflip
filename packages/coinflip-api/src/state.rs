@@ -46,7 +46,9 @@ pub struct Stats {
 #[account]
 #[derive(InitSpace, PartialEq, Debug)]
 pub struct Bet {
+    // base tokens sold
     pub amount: u64,
+    // USDC the swap produced
+    pub quote_amount: u64,
     pub side: BetSide,
-    pub created_at: u64,
 }

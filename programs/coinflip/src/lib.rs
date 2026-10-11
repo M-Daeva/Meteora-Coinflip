@@ -3,7 +3,6 @@
 pub mod cpi;
 pub mod helpers;
 pub mod instructions;
-pub mod uint256;
 
 use {
     anchor_lang::prelude::*,

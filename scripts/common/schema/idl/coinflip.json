@@ -921,16 +921,16 @@
             "type": "u64"
           },
           {
+            "name": "quote_amount",
+            "type": "u64"
+          },
+          {
             "name": "side",
             "type": {
               "defined": {
                 "name": "BetSide"
               }
             }
-          },
-          {
-            "name": "created_at",
-            "type": "u64"
           }
         ]
       }

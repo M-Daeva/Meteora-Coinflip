@@ -81,26 +81,15 @@ impl<'info> SettleBet<'info> {
         user: Pubkey,
         bumps: SettleBetBumps,
     ) -> Result<()> {
-        let Self {
-            token_quote_program,
-            config,
-            stats,
-            bet,
-            quote_mint,
-            user_quote_ta,
-            app_quote_ata,
-            vrf_request,
-            ..
-        } = self;
-
-        let fulfilled_request = vrf_request
+        let fulfilled_request = self
+            .vrf_request
             .request
             .fulfilled()
             .ok_or(CustomError::RandomnessNotFulfilled)?;
 
-        let is_user_won = check_if_user_won(&bet.side, fulfilled_request.randomness);
+        let is_user_won = check_if_user_won(&self.bet.side, fulfilled_request.randomness);
         let prize = if is_user_won {
-            calc_prize(bet.amount, stats)
+            calc_prize(self.bet.quote_amount)
         } else {
             0
         };
@@ -109,21 +98,21 @@ impl<'info> SettleBet<'info> {
             "player {}, nonce {}, bet_amount {}, bet_side {:#?}, prize {}",
             user,
             bet_nonce,
-            bet.amount,
-            bet.side,
+            self.bet.amount,
+            self.bet.side,
             prize
         );
 
         if is_user_won {
             transfer_token_from_program(
                 prize,
-                quote_mint,
-                app_quote_ata,
-                user_quote_ta,
+                &self.quote_mint,
+                &self.app_quote_ata,
+                &self.user_quote_ta,
                 &[SEED_CONFIG.as_bytes()],
                 bumps.config,
-                config,
-                token_quote_program,
+                &self.config,
+                &self.token_quote_program,
             )?;
         }
 

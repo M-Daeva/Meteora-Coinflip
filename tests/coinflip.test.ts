@@ -373,6 +373,6 @@ describe("Coinflip", () => {
     await fulfillRandomness(alice, betNonce);
 
     const settled = await settleBet(alice, betNonce);
-    expect(settled).toEqual({ usdc: 195_769, base: 0 });
+    expect(settled).toEqual({ usdc: 195_004, base: 0 });
   });
 });

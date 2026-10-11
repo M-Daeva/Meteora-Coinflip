@@ -927,16 +927,16 @@ export type Coinflip = {
             "type": "u64"
           },
           {
+            "name": "quoteAmount",
+            "type": "u64"
+          },
+          {
             "name": "side",
             "type": {
               "defined": {
                 "name": "betSide"
               }
             }
-          },
-          {
-            "name": "createdAt",
-            "type": "u64"
           }
         ]
       }

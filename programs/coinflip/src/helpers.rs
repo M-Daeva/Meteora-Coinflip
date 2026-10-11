@@ -1,14 +1,13 @@
 use {
-    crate::{cpi::vrf_cpi, uint256::U256},
+    crate::cpi::vrf_cpi,
     anchor_lang::prelude::*,
     anchor_spl::token_interface::TokenAccount,
-    base::{error::AuthError, helpers::get_clock_time},
+    base::error::AuthError,
     coinflip_api::{
         error::CustomError,
         state::{Bet, Config, Stats},
         types::BetSide,
     },
-    std::ops::{Div, Mul},
 };
 
 pub fn is_user_or_worker<'info>(
@@ -33,12 +32,8 @@ pub fn check_if_user_won(bet_side: &BetSide, randomness: [u8; 64]) -> bool {
     &outcome == bet_side
 }
 
-pub fn calc_prize(bet_amount: u64, stats: &Stats) -> u64 {
-    U256::from(2)
-        .mul(bet_amount)
-        .mul(stats.total_bought)
-        .div(stats.total_sold)
-        .as_u64()
+pub fn calc_prize(quote_amount: u64) -> u64 {
+    2 * quote_amount
 }
 
 pub fn max_key(a: &Pubkey, b: &Pubkey) -> [u8; 32] {
@@ -84,11 +79,11 @@ pub fn handle_common_place_bet_logic<'info>(
     // store the bet
     bet.set_inner(Bet {
         amount: bet_amount,
+        quote_amount: app_quote_balance_diff,
         side: bet_side,
-        created_at: get_clock_time()?,
     });
 
-    // update stats to calculate user's prize later
+    // update stats
     stats.total_sold += bet_amount;
     stats.total_bought += app_quote_balance_diff;
 
