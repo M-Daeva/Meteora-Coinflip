@@ -119,7 +119,41 @@ export class CoinflipHelpers implements IHelpers {
     return this.handleTx(signerList, [ix], txSettings);
   }
 
-  async tryPlaceBetDbc(
+  async tryPlaceBet(
+    dbcHelpers: DbcHelpers,
+    dammV2Helpers: DammV2Helpers,
+    oraoVrfHelpers: OraoVrfHelpers,
+    args: ICoinflip.PlaceBetArgs,
+    txSettings: TxSettings = {}
+  ): Promise<ParsedTransactionWithMeta | Ix[] | string> {
+    const { baseMint, quoteMint, dbcConfig } = await this.queryConfig();
+
+    const { poolState } = await dbcHelpers.queryVirtualPool(
+      dbcConfig,
+      quoteMint,
+      baseMint
+    );
+
+    // migrated -> liquidity lives in DAMM v2
+    if (poolState.isMigrated) {
+      return this.tryPlaceBetDamm(
+        dammV2Helpers,
+        oraoVrfHelpers,
+        args,
+        txSettings
+      );
+    }
+
+    // curve is complete but migration hasn't run yet:
+    // DBC rejects swaps and the DAMM pool doesn't exist
+    if (poolState.migrationProgress !== 0) {
+      throw new Error("Pool is migrating, try again later");
+    }
+
+    return this.tryPlaceBetDbc(dbcHelpers, oraoVrfHelpers, args, txSettings);
+  }
+
+  private async tryPlaceBetDbc(
     dbcHelpers: DbcHelpers,
     oraoVrfHelpers: OraoVrfHelpers,
     args: ICoinflip.PlaceBetArgs,
@@ -199,7 +233,7 @@ export class CoinflipHelpers implements IHelpers {
     return this.handleTx(signerList, [ix], txSettings);
   }
 
-  async tryPlaceBetDamm(
+  private async tryPlaceBetDamm(
     dammV2Helpers: DammV2Helpers,
     oraoVrfHelpers: OraoVrfHelpers,
     args: ICoinflip.PlaceBetArgs,

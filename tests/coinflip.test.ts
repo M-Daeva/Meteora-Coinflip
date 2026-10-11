@@ -253,8 +253,9 @@ describe("Coinflip", () => {
       baseMintKP.publicKey
     );
 
-    await app.coinflip.withSender(alice).tryPlaceBetDbc(
+    await app.coinflip.withSender(alice).tryPlaceBet(
       app.dbc,
+      app.dammV2,
       app.oraoVrf,
       {
         betAmount: dbcBetAmount,
@@ -357,7 +358,8 @@ describe("Coinflip", () => {
       baseMintKP.publicKey
     );
 
-    await app.coinflip.withSender(alice).tryPlaceBetDamm(
+    await app.coinflip.withSender(alice).tryPlaceBet(
+      app.dbc,
       app.dammV2,
       app.oraoVrf,
       {
