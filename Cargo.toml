@@ -3,7 +3,7 @@ name = "dbc-coinflip"
 edition = "2021"
 repository = "https://github.com/M-Daeva/dbc-coinflip"
 authors = []
-license = "BSL-1.1"
+license = "UNLICENSED"
 
 [workspace]
 members = ["programs/*", "packages/*"]
