@@ -1,11 +1,9 @@
 #![allow(unexpected_cfgs)]
 
-pub mod damm_cpi;
-pub mod dbc_cpi;
+pub mod cpi;
 pub mod helpers;
 pub mod instructions;
 pub mod uint256;
-pub mod vrf_cpi;
 
 use {
     anchor_lang::prelude::*,

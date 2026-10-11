@@ -1,8 +1,7 @@
 use {
     crate::{
-        damm_cpi,
+        cpi::{damm_cpi, vrf_cpi},
         helpers::{max_key, min_key},
-        vrf_cpi::request_randomness,
     },
     anchor_lang::prelude::*,
     anchor_spl::{
@@ -214,7 +213,7 @@ impl<'info> PlaceBetDamm<'info> {
         stats.total_bought += app_quote_balance_diff;
 
         // request randomness seeded by the bet address
-        request_randomness(
+        vrf_cpi::request_randomness(
             system_program,
             user,
             vrf_program,

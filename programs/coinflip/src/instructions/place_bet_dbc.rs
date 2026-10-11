@@ -1,5 +1,5 @@
 use {
-    crate::{dbc_cpi, vrf_cpi::request_randomness},
+    crate::cpi::{dbc_cpi, vrf_cpi},
     anchor_lang::prelude::*,
     anchor_spl::{
         associated_token::AssociatedToken,
@@ -202,7 +202,7 @@ impl<'info> PlaceBetDbc<'info> {
         stats.total_bought += app_quote_balance_diff;
 
         // request randomness seeded by the bet address
-        request_randomness(
+        vrf_cpi::request_randomness(
             system_program,
             user,
             vrf_program,
