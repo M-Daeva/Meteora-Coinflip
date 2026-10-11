@@ -1,19 +1,18 @@
 import * as anchor from "@coral-xyz/anchor";
 import { describe, it, expect, beforeAll } from "vitest";
 import { ResultType } from "../scripts/common/interfaces";
-import { initApp, shouldFailAsync } from "./litesvm-suite";
+import { initApp } from "./litesvm-suite";
 import { AppUser } from "../scripts/common/config/litesvm";
-import { Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { Keypair, PublicKey } from "@solana/web3.js";
 import { App } from "../scripts/common/account";
-import { getKeypairFromSeed, li } from "../scripts/common/utils";
+import { getKeypairFromSeed } from "../scripts/common/utils";
 import { AppToken, Cluster, getMintByAppToken } from "../scripts/common/config";
-import { BetSide } from "../scripts/common/interfaces/coinflip";
 
 const { BN } = anchor;
 
 const CLUSTER: Cluster = Cluster.Localnet;
 
-describe("Coinflip", () => {
+describe("DBC, DAMM, VRF", () => {
   const U64_MAX = new BN("18446744073709551615");
   const MIN_SQRT_PRICE = new BN("4295048016");
   const MAX_SQRT_PRICE = new BN("79226673521066979257578248091");
