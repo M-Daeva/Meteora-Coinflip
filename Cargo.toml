@@ -27,9 +27,6 @@ anchor-spl = { version = "0.31.1", features = ["token", "memo"] }
 borsh = "0.10.4"
 uint = { version = "0.10.0", default-features = false }
 solana-program = "2.2.1"
-# dynamic-bonding-curve = { git = "https://github.com/MeteoraAg/dynamic-bonding-curve", package = "dynamic-bonding-curve", features = [
-#   "cpi",
-# ] }
 orao-solana-vrf = { version = "0.6.1", default-features = false, features = [
   "cpi",
 ] }
