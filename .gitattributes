@@ -1,0 +1,3 @@
+scripts/** linguist-vendored
+tests/** linguist-vendored
+packages/**/*.ts linguist-vendored
