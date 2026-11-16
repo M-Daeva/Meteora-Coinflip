@@ -26,11 +26,20 @@ export async function initApp(
   const connection = new Connection(getRpc(cluster), COMMITMENT);
   const provider = new RpcProvider(connection, signer, cluster);
 
-  const { chain, coinflip, dbc, dammV2, oraoVrf } = getHelperSet(
+  const { chain, coinflip, faucet, dbc, dammV2, oraoVrf } = getHelperSet(
     provider,
     readonlyAnchorProvider(connection, signer.publicKey)
   );
 
-  return { provider, chain, coinflip, dbc, dammV2, oraoVrf, token: getTokenPubkeySet(cluster) };
+  return {
+    provider,
+    chain,
+    coinflip,
+    faucet,
+    dbc,
+    dammV2,
+    oraoVrf,
+    token: getTokenPubkeySet(cluster),
+  };
   // @generated:end:initApp-body
 }

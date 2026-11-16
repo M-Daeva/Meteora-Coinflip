@@ -6,6 +6,10 @@ export const PROGRAM = {
     NAME: "coinflip",
     PROGRAM_ID: new PublicKey("5u3XjrkcUyRqn1Qs8fpNJSxBwohE4ARZJJBukNUMJKsQ"),
   },
+  FAUCET: {
+    NAME: "faucet",
+    PROGRAM_ID: new PublicKey("GPAWLz4LE6SxE26GQT4y8vG1iRJsEQPUmxvs52JY19pm"),
+  },
   DBC: {
     NAME: "dbc",
     PROGRAM_ID: new PublicKey("dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN"),

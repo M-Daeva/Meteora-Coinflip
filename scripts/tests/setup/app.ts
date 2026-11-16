@@ -131,7 +131,7 @@ export async function initTestApp(
   const signer = toTxSigner(admin);
   const provider = new LiteSvmProvider(signer);
   const connection = new Connection(getRpc(CLUSTER));
-  const { chain, coinflip, dbc, dammV2, oraoVrf } = getHelperSet(
+  const { chain, coinflip, faucet, dbc, dammV2, oraoVrf } = getHelperSet(
     provider,
     readonlyAnchorProvider(connection, signer.publicKey)
   );
@@ -142,6 +142,7 @@ export async function initTestApp(
     provider,
     chain,
     coinflip,
+    faucet,
     dbc,
     dammV2,
     oraoVrf,

@@ -7,6 +7,8 @@ import type { IBlockchainProvider } from "../provider/interface";
 import { getProgram } from "../utils";
 import CoinflipIdl from "../schema/idl/coinflip.json";
 import type { Coinflip } from "../schema/types/coinflip";
+import FaucetIdl from "../schema/idl/faucet.json";
+import type { Faucet } from "../schema/types/faucet";
 import DbcIdl from "../schema/dbc/dbc.json";
 import type { DynamicBondingCurve } from "../schema/dbc/dbc";
 import DammV2Idl from "../schema/damm-v2/damm_v2.json";
@@ -15,6 +17,7 @@ import OraoVrfIdl from "../schema/orao-vrf/orao_vrf.json";
 import type { OraoVrf } from "../schema/orao-vrf/orao_vrf";
 import { ChainHelpers } from "./chain";
 import { CoinflipHelpers } from "./coinflip";
+import { FaucetHelpers } from "./faucet";
 import { DbcHelpers } from "./dbc";
 import { DammV2Helpers } from "./damm-v2";
 import { OraoVrfHelpers } from "./orao-vrf";
@@ -22,6 +25,7 @@ import { OraoVrfHelpers } from "./orao-vrf";
 export * from "./base";
 export * from "./chain";
 export * from "./coinflip";
+export * from "./faucet";
 export * from "./dbc";
 export * from "./damm-v2";
 export * from "./orao-vrf";
@@ -30,6 +34,7 @@ export interface App {
   provider: IBlockchainProvider;
   chain: ChainHelpers;
   coinflip: CoinflipHelpers;
+  faucet: FaucetHelpers;
   dbc: DbcHelpers;
   dammV2: DammV2Helpers;
   oraoVrf: OraoVrfHelpers;
@@ -42,6 +47,7 @@ export interface App {
  */
 export function getHelperSet(provider: IBlockchainProvider, anchorProvider: AnchorProvider) {
   const coinflipProgram = getProgram<Coinflip>(anchorProvider, CoinflipIdl as Coinflip);
+  const faucetProgram = getProgram<Faucet>(anchorProvider, FaucetIdl as Faucet);
   const dbcProgram = getProgram<DynamicBondingCurve>(anchorProvider, DbcIdl as DynamicBondingCurve);
   const dammV2Program = getProgram<CpAmm>(anchorProvider, DammV2Idl as CpAmm);
   const oraoVrfProgram = getProgram<OraoVrf>(anchorProvider, OraoVrfIdl as OraoVrf);
@@ -49,6 +55,7 @@ export function getHelperSet(provider: IBlockchainProvider, anchorProvider: Anch
   return {
     chain: new ChainHelpers(provider),
     coinflip: new CoinflipHelpers(provider, coinflipProgram),
+    faucet: new FaucetHelpers(provider, faucetProgram),
     dbc: new DbcHelpers(provider, dbcProgram),
     dammV2: new DammV2Helpers(provider, dammV2Program),
     oraoVrf: new OraoVrfHelpers(provider, oraoVrfProgram),

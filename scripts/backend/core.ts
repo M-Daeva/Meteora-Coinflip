@@ -13,6 +13,7 @@ import {
   ResultType,
   wait,
 } from "../common";
+import { bigint } from "mathjs";
 
 const CLUSTER: Cluster = Cluster.Devnet;
 
@@ -141,6 +142,28 @@ async function main() {
   //   resultType: ResultType.BroadcastedTx,
   //   isDisplayed: true,
   // });
+
+  // setup usdc faucet
+
+  // const CLAIMABLE_AMOUNT = 50_000;
+  // const CLAIM_COOLDOWN = 3_600;
+
+  // await app.faucet.tryInit(
+  //   quoteMint,
+  //   {
+  //     claimableAmount: CLAIMABLE_AMOUNT,
+  //     claimCooldown: CLAIM_COOLDOWN,
+  //   },
+  //   { resultType: ResultType.BroadcastedTx, isDisplayed: true }
+  // );
+
+  // await app.chain.transferTokens(
+  //   bigint(100 * CLAIMABLE_AMOUNT),
+  //   quoteMint,
+  //   adminSigner.publicKey,
+  //   app.faucet.pdaConfig()[0],
+  //   { resultType: ResultType.BroadcastedTx, isDisplayed: true }
+  // );
 
   const baseMintKp = getKeypairFromSeed(9_906);
   const baseMint = baseMintKp.publicKey;
