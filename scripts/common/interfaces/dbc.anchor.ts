@@ -1,7 +1,7 @@
 // Auto-generated Anchor types and converters
 import * as anchor from '@coral-xyz/anchor';
 import { PublicKey } from '@solana/web3.js';
-import { CreateConfigArgs, ConfigParameters, PoolFee, BaseFee, DynamicFee, MigrationFee, MigratedPoolFee, MigratedPoolMarketCapFeeSchedulerParams, TokenSupplyParams, LockedVestingParams, LiquidityVestingInfoParams, LiquidityDistributionParameters, CreatePoolWithToken2022Args, InitializePoolParameters, SwapArgs, SwapParameters2 } from './dbc';
+import { type CreateConfigArgs, type ConfigParameters, type PoolFee, type BaseFee, type DynamicFee, type MigrationFee, type MigratedPoolFee, type MigratedPoolMarketCapFeeSchedulerParams, type TokenSupplyParams, type LockedVestingParams, type LiquidityVestingInfoParams, type LiquidityDistributionParameters, type CreatePoolWithToken2022Args, type InitializePoolParameters, type SwapArgs, type SwapParameters2 } from './dbc';
 
 // Anchor-generated types
 export type AnchorCreateConfigArgs = [
