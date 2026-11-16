@@ -1,18 +1,18 @@
 use {crate::types::BetSide, anchor_lang::prelude::*};
 
 pub const MAINNET_ADMIN: Pubkey =
-    Pubkey::from_str_const("6yANiqv13yE9TFzj4y3M1zceSdMw77xHegGCnXdJzrAn");
+    Pubkey::from_str_const("9qsaqMY2DKDdhtmAzCtHBnCuahCPBJuWFJx5wQDWdJeS");
 pub const DEVNET_ADMIN: Pubkey =
-    Pubkey::from_str_const("AH9JvTDAiQy2zAuFfzteNyUrW5DYoTsTLoeNjXrxTTSt");
+    Pubkey::from_str_const("9qsaqMY2DKDdhtmAzCtHBnCuahCPBJuWFJx5wQDWdJeS");
 pub const LOCALNET_ADMIN: Pubkey =
-    Pubkey::from_str_const("Fk5wpZL2pV8AYkMKnEo5TAJ1p88FmUxBbKsZLwpiqWqQ");
+    Pubkey::from_str_const("2ZvHnqZEPndifTmRYFUD1Wzun5HmgwPEY3NFBmeFbYmi");
 
 pub const MAINNET_USDC: Pubkey =
     Pubkey::from_str_const("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
 pub const DEVNET_USDC: Pubkey =
-    Pubkey::from_str_const("CcuoBwMZJgupcdx81m3vYqBongw2PhhZ4yiYA2jo3K5");
+    Pubkey::from_str_const("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
 pub const LOCALNET_USDC: Pubkey =
-    Pubkey::from_str_const("8XdLEJXrM3yYfFg5EpMqcCKmXXSQeBKfTjvNP619LbE2");
+    Pubkey::from_str_const("qWHehL6NjpdXxteLffxS53Nx2sjuX9cjRw9rJnbnJMc");
 
 pub const SEED_CONFIG: &str = "config";
 pub const SEED_STATS: &str = "stats";

@@ -1,47 +1,36 @@
-import { getLiteSvmProvider, getRpc, readKeypair, rootPath } from "./utils";
-import { ResultType } from "../common/interfaces";
-import { initApp } from "../../tests/litesvm-suite";
+import { Connection } from "@solana/web3.js";
+import { loadAdminSigner } from "./signer.node";
+import { getRpc } from "./utils";
 import {
-  ADDRESS,
-  ADDRESS_DEVNET,
-  AppToken,
-  Cluster,
-  getMintByAppToken,
-  PATH,
-  PROGRAM,
-} from "../common/config";
-import {
-  Keypair,
-  PublicKey,
-  SystemProgram,
-  SYSVAR_INSTRUCTIONS_PUBKEY,
-  TransactionInstruction,
-} from "@solana/web3.js";
-import {
-  getAta,
-  getIxsFromEncodedTx,
-  getLast,
-  getTokenProgramFactory,
-  handleTx,
-  li,
-  Request,
-} from "../common/utils";
-import { getAltData } from "../common/account/chain";
-import {
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-  TOKEN_2022_PROGRAM_ID,
-  TOKEN_PROGRAM_ID,
-} from "@solana/spl-token";
-import { bs58 } from "@coral-xyz/anchor/dist/cjs/utils/bytes";
-import { ENV } from "./envs";
+  COMMITMENT,
+  getHelperSet,
+  getTokenPubkeySet,
+  readonlyAnchorProvider,
+  RpcProvider,
+  toTxSigner,
+  type App,
+  type Cluster,
+  type SignerLike,
+} from "../common";
 
-const CLUSTER: Cluster = Cluster.Mainnet;
+/**
+ * @param admin default signer (fee payer + default sender).
+ *   If omitted: ADMIN_SIGNER or ADMIN_KEYPAIR env.
+ */
+export async function initApp(
+  cluster: Cluster,
+  admin?: SignerLike
+): Promise<App> {
+  // @generated:start:initApp-body
+  const signer = admin ? toTxSigner(admin) : await loadAdminSigner();
+  const connection = new Connection(getRpc(cluster), COMMITMENT);
+  const provider = new RpcProvider(connection, signer, cluster);
 
-async function main() {
-  const ownerKeypair = await readKeypair(rootPath(PATH.OWNER_KEYPAIR));
-  const app = await initApp(CLUSTER, ownerKeypair);
+  const { chain, coinflip, dbc, dammV2, oraoVrf } = getHelperSet(
+    provider,
+    readonlyAnchorProvider(connection, signer.publicKey)
+  );
 
-  await app.oraoVrf.queryNetworkState(true);
+  return { provider, chain, coinflip, dbc, dammV2, oraoVrf, token: getTokenPubkeySet(cluster) };
+  // @generated:end:initApp-body
 }
-
-main();

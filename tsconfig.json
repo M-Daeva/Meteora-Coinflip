@@ -1,16 +1,15 @@
 {
   "include": [
-    "./migrations",
-    "./scripts",
-    "./tests"
+    "./scripts"
   ],
   "exclude": [
     "./dist"
   ],
   "compilerOptions": {
     "strict": true,
+    "verbatimModuleSyntax": true,
     "resolveJsonModule": true,
-    "module": "commonjs",
+    "module": "Preserve",
     "target": "es2020",
     "esModuleInterop": true,
     "lib": [

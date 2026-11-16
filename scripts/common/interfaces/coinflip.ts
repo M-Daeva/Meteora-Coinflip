@@ -1,5 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
-import { N } from ".";
+import { type N } from ".";
 
 export interface InitArgs {
   worker: PublicKey;

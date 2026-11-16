@@ -54,7 +54,7 @@ export class AnchorTypeGenerator {
 
     const names = [...types.map((t) => t.name), ...enums.map((e) => e.name)];
 
-    return `import { ${names.join(", ")} } from '${importPath}';\n\n`;
+    return `import type { ${names.join(", ")} } from '${importPath}';\n\n`;
   }
 
   generate(): string {

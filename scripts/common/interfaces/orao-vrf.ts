@@ -1,6 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
-import { N } from ".";
-import { BN } from "@coral-xyz/anchor";
+import { type N } from ".";
 
 export interface InitNetworkArgs {
   fee: N<64>;

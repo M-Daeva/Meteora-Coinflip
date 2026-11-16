@@ -1,27 +1,12 @@
-import { Keypair, PublicKey } from "@solana/web3.js";
-import { networks, ProgramName } from "../config";
-
-export type Network = (typeof networks)[number];
-
-export type NetworkConfig = {
-  [k in Network]: string;
-};
-
-export type ProgramAddress = {
-  [k in ProgramName]: string;
-};
+import type { PublicKey } from "@solana/web3.js";
+import type { Actor, SignerLike } from "../signer";
 
 export enum ResultType {
   Ixs,
   IxsWithCu,
-  EncodedTx, // base58
+  EncodedTxBase58,
   EncodedTxBase64,
   BroadcastedTx,
-}
-
-export interface IHelpers {
-  temporarySender?: Keypair;
-  defaultWallet: PublicKey;
 }
 
 // Configuration for compute units and priority fees
@@ -35,7 +20,10 @@ export interface ComputeConfig {
 }
 
 type BaseTxSettings = {
-  payer?: Keypair;
+  /** Fee payer. Keypair / keychain signer / wallet, or a PublicKey that signs elsewhere. Default: provider.signer */
+  payer?: Actor;
+  /** Extra signers for this call only (new account keypairs, co-signers, ...) */
+  signers?: SignerLike[];
   addressLookupTableAddresses?: PublicKey[];
   isToken2022?: boolean;
   computeConfig?: ComputeConfig;
@@ -43,43 +31,35 @@ type BaseTxSettings = {
   // disable tx simulation and use constant blockhash
   // it makes the function pure and available for tests
   isSimulationDisabled?: boolean;
-  // useful when all signers aren't available before tx serialization
+  // EncodedTx*: sign with every signer available here, leave the rest empty.
+  // Without it encoded txs are returned unsigned.
   partialSigning?: boolean;
 };
 
 // Settings that don't require executor
 type TxSettingsWithoutExecutor = BaseTxSettings & {
   resultType?: ResultType.Ixs | ResultType.IxsWithCu | ResultType.BroadcastedTx;
-  executor?: PublicKey;
+  /** Acts as sender for this call only (overrides withSender) */
+  executor?: Actor;
 };
 
 // Settings that require executor (EncodedTx)
 type TxSettingsWithExecutor = BaseTxSettings & {
-  resultType: ResultType.EncodedTx | ResultType.EncodedTxBase64;
-  executor: PublicKey; // required here
+  resultType: ResultType.EncodedTxBase58 | ResultType.EncodedTxBase64;
+  /** Who will sign the encoded tx; usually the user's PublicKey */
+  executor: Actor;
 };
 
-// Always include executor in the base, but make it optional there
-export type TxSettings = (
-  | TxSettingsWithoutExecutor
-  | TxSettingsWithExecutor
-) & {
-  executor?: PublicKey; // This ensures executor is always accessible
-};
+export type TxSettings = TxSettingsWithoutExecutor | TxSettingsWithExecutor;
 
 type D = 8 | 16 | 32 | 64 | 128;
-export type N<T extends D> = number;
+export type N<_T extends D> = number;
 
 export type QuerySettings = {
   tokenProgram?: PublicKey | string;
   isAtomic?: boolean;
   isDisplayed?: boolean;
 };
-
-export interface TokenWeight {
-  collateralWeight: number;
-  loanWeight: number;
-}
 
 export interface TokenConfig {
   decimals: number;
