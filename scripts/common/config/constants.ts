@@ -193,7 +193,7 @@ export const TOKEN_MINTS: Record<Cluster, Record<AppToken, string>> = {
     [AppToken.LBTC]: DEFAULT_MINT,
 
     // Stablecoins
-    [AppToken.USDC]: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+    [AppToken.USDC]: "qWHehL6NjpdXxteLffxS53Nx2sjuX9cjRw9rJnbnJMc",
     [AppToken.USDT]: "HNHj2QWuNWEpB2H936dmegwgVKLwFMw3GsyZ7EZTSuj9",
     [AppToken.USDY]: DEFAULT_MINT,
     [AppToken.USDS]: DEFAULT_MINT,

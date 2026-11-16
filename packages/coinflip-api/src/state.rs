@@ -10,7 +10,7 @@ pub const LOCALNET_ADMIN: Pubkey =
 pub const MAINNET_USDC: Pubkey =
     Pubkey::from_str_const("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
 pub const DEVNET_USDC: Pubkey =
-    Pubkey::from_str_const("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
+    Pubkey::from_str_const("qWHehL6NjpdXxteLffxS53Nx2sjuX9cjRw9rJnbnJMc");
 pub const LOCALNET_USDC: Pubkey =
     Pubkey::from_str_const("qWHehL6NjpdXxteLffxS53Nx2sjuX9cjRw9rJnbnJMc");
 
