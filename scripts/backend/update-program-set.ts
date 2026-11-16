@@ -9,7 +9,8 @@
  *
  * Per program it expects (by convention, NAME = "badge_minter"):
  *   - IDL json:   common/schema/badge-minter/badge_minter.json, else common/schema/idl/badge_minter.json
- *   - IDL type:   common/schema/types/badge_minter.ts exporting `BadgeMinter` (else falls back to anchor `Idl`)
+ *   - IDL type:   common/schema/badge-minter/badge_minter.ts, else common/schema/types/badge_minter.ts,
+ *                 exporting the anchor IDL type (name read from the file; else falls back to anchor `Idl`)
  *   - helper:     common/helpers/badge-minter.ts exporting `BadgeMinterHelpers`
  *
  * Usage:
@@ -198,13 +199,45 @@ function resolveIdlImportPath(root: string, p: ProgramEntry): string {
   return `../schema/idl/${p.name}.json`;
 }
 
-/** Anchor-generated IDL type (`export type BadgeMinter = {...}`), or null to fall back to `Idl`. */
-function resolveIdlTypeImportPath(
-  root: string,
-  p: ProgramEntry
-): string | null {
-  const typeAbs = path.join(root, ...SCHEMA_DIR, "types", `${p.name}.ts`);
-  return fs.existsSync(typeAbs) ? `../schema/types/${p.name}` : null;
+interface IdlTypeRef {
+  importPath: string; // "../schema/dbc/dbc"
+  typeName: string; // "DynamicBondingCurve"
+}
+
+/** Name of the anchor IDL type exported by a types file; prefers the PascalCase program name. */
+function detectIdlTypeName(file: string, p: ProgramEntry): string | null {
+  const src = fs.readFileSync(file, "utf8");
+  const re = /export\s+type\s+(\w+)\s*=/g;
+  const names: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src)) !== null) names.push(m[1]);
+  if (names.length === 0) return null;
+  return names.includes(p.pascal) ? p.pascal : names[0];
+}
+
+/**
+ * Anchor-generated IDL type: per-program folder first (schema/<kebab>/<name>.ts),
+ * then the shared schema/types/<name>.ts. Null → fall back to `Idl`.
+ */
+function resolveIdlType(root: string, p: ProgramEntry): IdlTypeRef | null {
+  const candidates = [
+    {
+      abs: path.join(root, ...SCHEMA_DIR, p.kebab, `${p.name}.ts`),
+      rel: `../schema/${p.kebab}/${p.name}`,
+    },
+    {
+      abs: path.join(root, ...SCHEMA_DIR, "types", `${p.name}.ts`),
+      rel: `../schema/types/${p.name}`,
+    },
+  ];
+
+  for (const c of candidates) {
+    if (!fs.existsSync(c.abs)) continue;
+    const typeName = detectIdlTypeName(c.abs, p);
+    if (typeName) return { importPath: c.rel, typeName };
+    console.warn(`⚠  ${c.abs} has no 'export type X = ...' – ignoring it.`);
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -340,10 +373,10 @@ function generateHelpersIndexTs(
   }
 
   const idlTypes = new Map(
-    programs.map((p) => [p.name, resolveIdlTypeImportPath(root, p)])
+    programs.map((p) => [p.name, resolveIdlType(root, p)])
   );
   const needsGenericIdl = programs.some((p) => !idlTypes.get(p.name));
-  const typeOf = (p: ProgramEntry) => (idlTypes.get(p.name) ? p.pascal : "Idl");
+  const typeOf = (p: ProgramEntry) => idlTypes.get(p.name)?.typeName ?? "Idl";
 
   const anchorImport = needsGenericIdl
     ? `import type { AnchorProvider, Idl } from "@coral-xyz/anchor";`
@@ -351,12 +384,10 @@ function generateHelpersIndexTs(
 
   const programImports = programs
     .flatMap((p) => {
-      const typePath = idlTypes.get(p.name);
+      const t = idlTypes.get(p.name);
       return [
         `import ${p.pascal}Idl from "${resolveIdlImportPath(root, p)}";`,
-        ...(typePath
-          ? [`import type { ${p.pascal} } from "${typePath}";`]
-          : []),
+        ...(t ? [`import type { ${t.typeName} } from "${t.importPath}";`] : []),
       ];
     })
     .join("\n");
