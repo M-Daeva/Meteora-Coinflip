@@ -1,16 +1,18 @@
 import * as anchor from "@coral-xyz/anchor";
 import { loadAdminSigner } from "./signer.node";
+import { initApp } from "./app";
+import { getKeypairFromSeed } from "./utils";
+import { getMintKeypairs } from "../tests/setup/litesvm-config";
+import { PublicKey } from "@solana/web3.js";
+import { BetSide } from "../common/interfaces/coinflip";
 import {
   AppToken,
   Cluster,
   getMintByAppToken,
   li,
   ResultType,
+  wait,
 } from "../common";
-import { initApp } from "./app";
-import { getKeypairFromSeed } from "./utils";
-import { getMintKeypairs } from "../tests/setup/litesvm-config";
-import { PublicKey } from "@solana/web3.js";
 
 const CLUSTER: Cluster = Cluster.Devnet;
 
@@ -32,7 +34,7 @@ const DAMM_CREATE_CONFIG_PERMISSION = new BN(1).shln(0); // CREATE_CONFIG_KEY = 
 const DBC_MIGRATION_QUOTE_THRESHOLD = 5_000_000;
 const APP_USDC_FUNDING = 10_000_000;
 const MIN_QUOTE_BET = 1_000;
-const MAX_QUOTE_BET = 10_000_000;
+const MAX_QUOTE_BET = 1_000_000;
 
 const SWAP_BEFORE_BET = 3_000_000; // stays below the migration threshold
 const SWAP_TO_COMPLETE_CURVE = 6_000_000; // partial fill, completes the curve
@@ -162,20 +164,88 @@ async function main() {
   //   { resultType: ResultType.BroadcastedTx, isDisplayed: true }
   // );
 
-  await app.dbc.queryVirtualPool(dbcConfig, baseMint, quoteMint, true);
+  // await app.dbc.queryVirtualPool(dbcConfig, baseMint, quoteMint, true);
 
-  await app.coinflip.tryInit(
+  // await app.coinflip.tryInit(
+  //   {
+  //     worker: adminSigner.publicKey,
+  //     baseMint,
+  //     vrfProgram: app.oraoVrf.program.programId,
+  //     dbcProgram: app.dbc.program.programId,
+  //     dammProgram: app.dammV2.program.programId,
+  //     dbcConfig,
+  //     dammConfig: PublicKey.default,
+  //     minQuoteBet: MIN_QUOTE_BET,
+  //     maxQuoteBet: MAX_QUOTE_BET,
+  //   },
+  //   { resultType: ResultType.BroadcastedTx, isDisplayed: true }
+  // );
+  // await app.coinflip.queryConfig(true);
+
+  // await app.chain.transferTokens(
+  //   BigInt(APP_USDC_FUNDING),
+  //   quoteMint,
+  //   adminSigner.publicKey,
+  //   app.coinflip.pdaConfig()[0],
+  //   { resultType: ResultType.BroadcastedTx, isDisplayed: true }
+  // );
+
+  // await app.dbc.trySwap(
+  //   baseMint,
+  //   quoteMint,
+  //   dbcConfig,
+  //   {
+  //     swapParameters2: {
+  //       swapMode: 1, // partial fill
+  //       amount0: 50_000,
+  //       amount1: 0,
+  //     },
+  //   },
+  //   { resultType: ResultType.BroadcastedTx, isDisplayed: true }
+  // );
+
+  // const baseMintBalance = await app.chain.getAtaBalance(
+  //   adminSigner.publicKey,
+  //   baseMint,
+  //   { isDisplayed: true, isAtomic: false }
+  // );
+
+  const betNonce = Date.now();
+  li({ betNonce });
+
+  await app.coinflip.tryPlaceBet(
+    app.dbc,
+    app.dammV2,
+    app.oraoVrf,
     {
-      worker: adminSigner.publicKey,
-      baseMint,
-      vrfProgram: app.oraoVrf.program.programId,
-      dbcProgram: app.dbc.program.programId,
-      dammProgram: app.dammV2.program.programId,
-      dbcConfig,
-      dammConfig: PublicKey.default,
-      minQuoteBet: MIN_QUOTE_BET,
-      maxQuoteBet: MAX_QUOTE_BET,
+      betAmount: 2_000,
+      betSide: BetSide.Head,
+      betNonce,
+      minQuoteOut: 0,
     },
+    { resultType: ResultType.BroadcastedTx }
+  );
+
+  const [betPda] = app.coinflip.pdaBet(adminSigner.publicKey, betNonce);
+  const seed = betPda.toBuffer();
+
+  while (true) {
+    const {
+      request: { fulfilled },
+    } = await app.oraoVrf.queryRequest(seed);
+
+    const randomness = fulfilled?.[0].randomness || [];
+    li({ randomness });
+    if (randomness.length) {
+      break;
+    }
+
+    await wait(500);
+  }
+
+  await app.coinflip.trySettleBet(
+    app.oraoVrf,
+    { betNonce, user: adminSigner.publicKey },
     { resultType: ResultType.BroadcastedTx, isDisplayed: true }
   );
 }
