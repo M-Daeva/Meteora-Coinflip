@@ -1,16 +1,12 @@
 import * as anchor from "@coral-xyz/anchor";
 import { describe, it, expect, beforeAll } from "vitest";
-import { ResultType } from "../scripts/common/interfaces";
-import { initApp } from "./litesvm-suite";
-import { AppUser } from "../scripts/common/config/litesvm";
 import { Keypair, PublicKey } from "@solana/web3.js";
-import { App } from "../scripts/common/account";
-import { getKeypairFromSeed } from "../scripts/common/utils";
-import { AppToken, Cluster, getMintByAppToken } from "../scripts/common/config";
+import { AppUser } from "./setup/app-user";
+import { getKeypairFromSeed } from "../backend/utils";
+import { initTestApp } from "./setup/app";
+import { AppToken, getMintByAppToken, ResultType, type App } from "../common";
 
 const { BN } = anchor;
-
-const CLUSTER: Cluster = Cluster.Localnet;
 
 describe("DBC, DAMM, VRF", () => {
   const U64_MAX = new BN("18446744073709551615");
@@ -26,7 +22,7 @@ describe("DBC, DAMM, VRF", () => {
   let token: Record<AppToken, PublicKey>;
 
   beforeAll(async () => {
-    app = await initApp(CLUSTER, adminKeypair);
+    app = await initTestApp(adminKeypair);
     ({ token } = app);
     user.setChain(app.chain);
   });
@@ -306,7 +302,7 @@ describe("DBC, DAMM, VRF", () => {
     } = await app.oraoVrf.queryRequest(seed);
     expect(pending?.[0].seed).toEqual([...seed]);
 
-    await app.oraoVrf.withSender(worker).tryFulfill(seed, {
+    await app.oraoVrf.withSender(worker).tryFulfill(seed, worker, {
       resultType: ResultType.BroadcastedTx,
     });
 

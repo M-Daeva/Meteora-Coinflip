@@ -1,7 +1,7 @@
 // Auto-generated Anchor types and converters
 import * as anchor from '@coral-xyz/anchor';
 import { PublicKey } from '@solana/web3.js';
-import { InitNetworkArgs, OraoTokenFeeConfig } from './orao-vrf';
+import { type InitNetworkArgs, type OraoTokenFeeConfig } from './orao-vrf';
 
 // Anchor-generated types
 export type AnchorInitNetworkArgs = [

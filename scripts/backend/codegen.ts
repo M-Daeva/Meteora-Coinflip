@@ -52,9 +52,16 @@ export class AnchorTypeGenerator {
     const importPath =
       "./" + path.basename(this.sourceFile.fileName).replace(/\.ts$/, "");
 
-    const names = [...types.map((t) => t.name), ...enums.map((e) => e.name)];
+    const typeNames = types.map((t) => t.name);
+    const enumNames = enums.map((e) => e.name);
 
-    return `import { ${names.join(", ")} } from '${importPath}';\n\n`;
+    // Enums are runtime values (used in `case BetSide.Head:`), so they need a
+    // value import. Interfaces only exist at compile time, so mark them `type`.
+    const specifiers = [...typeNames.map((n) => `type ${n}`), ...enumNames];
+
+    if (specifiers.length === 0) return "\n";
+
+    return `import { ${specifiers.join(", ")} } from '${importPath}';\n\n`;
   }
 
   generate(): string {

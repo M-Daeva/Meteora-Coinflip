@@ -1,93 +1,37 @@
-import * as anchor from "@coral-xyz/anchor";
 import * as spl from "@solana/spl-token";
-import { IHelpers, ResultType, TxSettings } from "../interfaces";
-import { IBlockchainProvider, LiteSvmProvider } from "./provider";
-import { IdlAccounts } from "@coral-xyz/anchor";
-import { Coinflip } from "../schema/types/coinflip";
+import { type Coinflip } from "../schema/types/coinflip";
+import type { TxSettings } from "../interfaces";
+import type { TxResult } from "../tx";
+import { logAndReturn } from "../utils/log";
+import { ProgramHelpers } from "./base";
+import type { IdlAccounts } from "@coral-xyz/anchor";
+import { getAta, getOrCreateAtaIxs, numberToRustBuffer } from "../utils";
 import { AppToken, getMintByAppToken } from "../config";
-import { OraoVrfHelpers } from "./orao-vrf";
-import { DbcHelpers } from "./dbc";
-import { DammV2Helpers } from "./damm-v2";
-import {
-  PublicKey,
-  TransactionInstruction as Ix,
-  ParsedTransactionWithMeta,
-  Keypair,
-} from "@solana/web3.js";
-import {
-  fetchMultipleAccountsFactory,
-  getActorsFactory,
-  getAta,
-  getOrCreateAtaIxs,
-  getSignersFactory,
-  getTokenProgramFactory,
-  handleTxFactory,
-  li,
-  logAndReturn,
-  numberToRustBuffer,
-  withSenderFactory,
-} from "../utils";
+import { PublicKey, SystemProgram } from "@solana/web3.js";
+import type { OraoVrfHelpers } from "./orao-vrf";
+import type { DbcHelpers } from "./dbc";
+import type { DammV2Helpers } from "./damm-v2";
 
 import * as ICoinflip from "../interfaces/coinflip";
 import * as IACoinflip from "../interfaces/coinflip.anchor";
 
+const ACCOUNT_CONFIG = "config";
+const ACCOUNT_BET = "bet";
+
+const SEED_CONFIG = "config";
+const SEED_STATS = "stats";
+const SEED_BET = "bet";
+
 type CoinflipAccount<T extends keyof IdlAccounts<Coinflip>> =
   IdlAccounts<Coinflip>[T];
-export type ConfigAccount = CoinflipAccount<"config">;
-export type BetAccount = CoinflipAccount<"bet">;
+export type ConfigAccount = CoinflipAccount<typeof ACCOUNT_CONFIG>;
+export type BetAccount = CoinflipAccount<typeof ACCOUNT_BET>;
 
-export class CoinflipHelpers implements IHelpers {
-  private SYSTEM_PROGRAM: PublicKey = anchor.web3.SystemProgram.programId;
-  private ASSOCIATED_TOKEN_PROGRAM: PublicKey = spl.ASSOCIATED_TOKEN_PROGRAM_ID;
-
-  public defaultWallet: PublicKey;
-  public temporarySender?: Keypair;
-
-  public fetchMultipleAccounts: <T extends keyof IdlAccounts<Coinflip>>(
-    accountName: T,
-    addresses: PublicKey[]
-  ) => Promise<IdlAccounts<Coinflip>[T][]>;
-
-  private handleTx: (
-    signerList: Keypair[],
-    instructions: Ix[],
-    txSettings: TxSettings
-  ) => Promise<ParsedTransactionWithMeta | Ix[] | string>;
-
-  getTokenProgram: (
-    mint: PublicKey,
-    isToken2022?: boolean
-  ) => Promise<PublicKey>;
-
-  public withSender: (sender: Keypair) => this;
-  private getActors: (txSettings: TxSettings) => [PublicKey, PublicKey];
-  private getSigners: (...additionalSigners: Keypair[]) => Keypair[];
-
-  constructor(
-    public provider: IBlockchainProvider,
-    public program: anchor.Program<Coinflip>
-  ) {
-    this.defaultWallet = provider.wallet.publicKey;
-    this.program = program;
-    this.provider = provider;
-    this.fetchMultipleAccounts = fetchMultipleAccountsFactory(
-      provider,
-      program
-    );
-    this.handleTx = handleTxFactory(provider);
-    this.getTokenProgram = getTokenProgramFactory(provider);
-    this.withSender = withSenderFactory();
-    this.getActors = getActorsFactory();
-    this.getSigners = getSignersFactory();
-  }
-
+export class CoinflipHelpers extends ProgramHelpers<Coinflip> {
   async tryInit(
     args: ICoinflip.InitArgs,
     txSettings: TxSettings = {}
-  ): Promise<ParsedTransactionWithMeta | Ix[] | string> {
-    const [_payer, sender] = this.getActors(txSettings);
-    const signerList = this.getSigners();
-
+  ): Promise<TxResult> {
     const quoteMint = getMintByAppToken(this.provider.cluster, AppToken.USDC);
     const tokenProgram = await this.getTokenProgram(quoteMint);
 
@@ -105,10 +49,10 @@ export class CoinflipHelpers implements IHelpers {
     const ix = await this.program.methods
       .init(...IACoinflip.convertInitArgs(args))
       .accountsStrict({
-        systemProgram: this.SYSTEM_PROGRAM,
+        systemProgram: SystemProgram.programId,
         tokenProgram,
-        associatedTokenProgram: this.ASSOCIATED_TOKEN_PROGRAM,
-        admin: sender,
+        associatedTokenProgram: spl.ASSOCIATED_TOKEN_PROGRAM_ID,
+        admin: this.senderKey(txSettings),
         config,
         stats,
         quoteMint,
@@ -116,7 +60,7 @@ export class CoinflipHelpers implements IHelpers {
       })
       .instruction();
 
-    return this.handleTx(signerList, [ix], txSettings);
+    return this.send([ix], txSettings);
   }
 
   async tryPlaceBet(
@@ -125,8 +69,9 @@ export class CoinflipHelpers implements IHelpers {
     oraoVrfHelpers: OraoVrfHelpers,
     args: ICoinflip.PlaceBetArgs,
     txSettings: TxSettings = {}
-  ): Promise<ParsedTransactionWithMeta | Ix[] | string> {
-    const { baseMint, quoteMint, dbcConfig } = await this.queryConfig();
+  ): Promise<TxResult> {
+    const configState = await this.queryConfig();
+    const { baseMint, quoteMint, dbcConfig } = configState;
 
     const { poolState } = await dbcHelpers.queryVirtualPool(
       dbcConfig,
@@ -139,6 +84,7 @@ export class CoinflipHelpers implements IHelpers {
       return this.tryPlaceBetDamm(
         dammV2Helpers,
         oraoVrfHelpers,
+        configState,
         args,
         txSettings
       );
@@ -150,29 +96,34 @@ export class CoinflipHelpers implements IHelpers {
       throw new Error("Pool is migrating, try again later");
     }
 
-    return this.tryPlaceBetDbc(dbcHelpers, oraoVrfHelpers, args, txSettings);
+    return this.tryPlaceBetDbc(
+      dbcHelpers,
+      oraoVrfHelpers,
+      configState,
+      args,
+      txSettings
+    );
   }
 
   private async tryPlaceBetDbc(
     dbcHelpers: DbcHelpers,
     oraoVrfHelpers: OraoVrfHelpers,
+    configState: ConfigAccount,
     args: ICoinflip.PlaceBetArgs,
     txSettings: TxSettings = {}
-  ): Promise<ParsedTransactionWithMeta | Ix[] | string> {
-    const [_payer, sender] = this.getActors(txSettings);
-    const signerList = this.getSigners();
+  ): Promise<TxResult> {
+    const sender = this.senderKey(txSettings);
+    const { baseMint, quoteMint, dbcProgram, vrfProgram, dbcConfig } =
+      configState;
 
     const [
-      { baseMint, quoteMint, dbcProgram, vrfProgram, dbcConfig },
       {
         config: { treasury: vrfTreasury },
       },
+      tokenBaseProgram,
+      tokenQuoteProgram,
     ] = await Promise.all([
-      this.queryConfig(),
       oraoVrfHelpers.queryNetworkState(),
-    ]);
-
-    const [tokenBaseProgram, tokenQuoteProgram] = await Promise.all([
       this.getTokenProgram(baseMint),
       this.getTokenProgram(quoteMint),
     ]);
@@ -204,10 +155,10 @@ export class CoinflipHelpers implements IHelpers {
     const ix = await this.program.methods
       .placeBetDbc(...IACoinflip.convertPlaceBetArgs(args))
       .accountsStrict({
-        systemProgram: this.SYSTEM_PROGRAM,
+        systemProgram: SystemProgram.programId,
         tokenBaseProgram,
         tokenQuoteProgram,
-        associatedTokenProgram: this.ASSOCIATED_TOKEN_PROGRAM,
+        associatedTokenProgram: spl.ASSOCIATED_TOKEN_PROGRAM_ID,
         user: sender,
         config,
         stats,
@@ -230,29 +181,28 @@ export class CoinflipHelpers implements IHelpers {
       })
       .instruction();
 
-    return this.handleTx(signerList, [ix], txSettings);
+    return this.send([ix], txSettings);
   }
 
   private async tryPlaceBetDamm(
     dammV2Helpers: DammV2Helpers,
     oraoVrfHelpers: OraoVrfHelpers,
+    configState: ConfigAccount,
     args: ICoinflip.PlaceBetArgs,
     txSettings: TxSettings = {}
-  ): Promise<ParsedTransactionWithMeta | Ix[] | string> {
-    const [_payer, sender] = this.getActors(txSettings);
-    const signerList = this.getSigners();
+  ): Promise<TxResult> {
+    const sender = this.senderKey(txSettings);
+    const { baseMint, quoteMint, dammProgram, vrfProgram, dammConfig } =
+      configState;
 
     const [
-      { baseMint, quoteMint, dammProgram, vrfProgram, dammConfig },
       {
         config: { treasury: vrfTreasury },
       },
+      tokenBaseProgram,
+      tokenQuoteProgram,
     ] = await Promise.all([
-      this.queryConfig(),
       oraoVrfHelpers.queryNetworkState(),
-    ]);
-
-    const [tokenBaseProgram, tokenQuoteProgram] = await Promise.all([
       this.getTokenProgram(baseMint),
       this.getTokenProgram(quoteMint),
     ]);
@@ -294,10 +244,10 @@ export class CoinflipHelpers implements IHelpers {
     const ix = await this.program.methods
       .placeBetDamm(...IACoinflip.convertPlaceBetArgs(args))
       .accountsStrict({
-        systemProgram: this.SYSTEM_PROGRAM,
+        systemProgram: SystemProgram.programId,
         tokenBaseProgram,
         tokenQuoteProgram,
-        associatedTokenProgram: this.ASSOCIATED_TOKEN_PROGRAM,
+        associatedTokenProgram: spl.ASSOCIATED_TOKEN_PROGRAM_ID,
         user: sender,
         config,
         stats,
@@ -319,16 +269,15 @@ export class CoinflipHelpers implements IHelpers {
       })
       .instruction();
 
-    return this.handleTx(signerList, [ix], txSettings);
+    return this.send([ix], txSettings);
   }
 
   async trySettleBet(
     oraoVrfHelpers: OraoVrfHelpers,
     args: ICoinflip.SettleBetArgs,
     txSettings: TxSettings = {}
-  ): Promise<ParsedTransactionWithMeta | Ix[] | string> {
-    const [_payer, sender] = this.getActors(txSettings);
-    const signerList = this.getSigners();
+  ): Promise<TxResult> {
+    const sender = this.senderKey(txSettings);
 
     const { quoteMint, vrfProgram } = await this.queryConfig();
     const tokenQuoteProgram = await this.getTokenProgram(quoteMint);
@@ -356,9 +305,9 @@ export class CoinflipHelpers implements IHelpers {
     const ix = await this.program.methods
       .settleBet(...IACoinflip.convertSettleBetArgs(args))
       .accountsStrict({
-        systemProgram: this.SYSTEM_PROGRAM,
+        systemProgram: SystemProgram.programId,
         tokenQuoteProgram,
-        associatedTokenProgram: this.ASSOCIATED_TOKEN_PROGRAM,
+        associatedTokenProgram: spl.ASSOCIATED_TOKEN_PROGRAM_ID,
         sender,
         config,
         stats,
@@ -371,12 +320,12 @@ export class CoinflipHelpers implements IHelpers {
       })
       .instruction();
 
-    return this.handleTx(signerList, [...ataIxs, ix], txSettings);
+    return this.send([...ataIxs, ix], txSettings);
   }
 
   async queryConfig(isDisplayed: boolean = false): Promise<ConfigAccount> {
     const [pda] = this.pdaConfig();
-    const [res] = await this.fetchMultipleAccounts("config", [pda]);
+    const [res] = await this.fetchAccounts(ACCOUNT_CONFIG, [pda]);
     return logAndReturn(res, isDisplayed);
   }
 
@@ -386,28 +335,28 @@ export class CoinflipHelpers implements IHelpers {
     isDisplayed: boolean = false
   ): Promise<BetAccount> {
     const [pda] = this.pdaBet(user, betNonce);
-    const [res] = await this.fetchMultipleAccounts("bet", [pda]);
+    const [res] = await this.fetchAccounts(ACCOUNT_BET, [pda]);
     return logAndReturn(res, isDisplayed);
   }
 
   pdaConfig(): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
-      [Buffer.from("config")],
+      [Buffer.from(SEED_CONFIG)],
       this.program.programId
     );
   }
 
   pdaStats(): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
-      [Buffer.from("stats")],
+      [Buffer.from(SEED_STATS)],
       this.program.programId
     );
   }
 
-  pdaBet(user: PublicKey, betNonce: number) {
+  pdaBet(user: PublicKey, betNonce: number): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [
-        Buffer.from("bet"),
+        Buffer.from(SEED_BET),
         user.toBuffer(),
         numberToRustBuffer(betNonce, "u64"),
       ],

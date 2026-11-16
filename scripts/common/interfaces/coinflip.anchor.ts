@@ -1,7 +1,7 @@
 // Auto-generated Anchor types and converters
 import * as anchor from '@coral-xyz/anchor';
 import { PublicKey } from '@solana/web3.js';
-import { InitArgs, PlaceBetArgs, SettleBetArgs, BetSide } from './coinflip';
+import { type InitArgs, type PlaceBetArgs, type SettleBetArgs, BetSide } from './coinflip';
 
 // Anchor-generated types
 export type AnchorBetSide =

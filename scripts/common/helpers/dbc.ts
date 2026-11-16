@@ -1,112 +1,69 @@
-import * as anchor from "@coral-xyz/anchor";
 import * as spl from "@solana/spl-token";
-import { DynamicBondingCurve } from "../schema/dbc/dynamic_bonding_curve";
-import { IHelpers, TxSettings } from "../interfaces";
-import { BPF_LOADER_UPGRADEABLE, IBlockchainProvider } from "./provider";
-import { IdlAccounts } from "@coral-xyz/anchor";
-import { AppToken, getMintByAppToken, PROGRAM } from "../config";
 import { getFirstKey, getSecondKey } from "./utils";
 import { DammV2Helpers } from "./damm-v2";
+import { type DynamicBondingCurve } from "../schema/dbc/dbc";
+import type { TxSettings } from "../interfaces";
+import type { TxResult } from "../tx";
+import { logAndReturn } from "../utils/log";
+import { ProgramHelpers } from "./base";
+import type { IdlAccounts } from "@coral-xyz/anchor";
+import { getOrCreateAtaIxs } from "../utils";
+import {
+  AppToken,
+  BPF_LOADER_UPGRADEABLE,
+  getMintByAppToken,
+  PROGRAM,
+} from "../config";
 import {
   PublicKey,
-  TransactionInstruction as Ix,
-  ParsedTransactionWithMeta,
+  SystemProgram,
   Keypair,
-  AccountMeta,
+  type AccountMeta,
 } from "@solana/web3.js";
-import {
-  fetchMultipleAccountsFactory,
-  getActorsFactory,
-  getOrCreateAtaIxs,
-  getSignersFactory,
-  getTokenProgramFactory,
-  handleTxFactory,
-  logAndReturn,
-  withSenderFactory,
-} from "../utils";
 
 import * as IDbc from "../interfaces/dbc";
 import * as IADbc from "../interfaces/dbc.anchor";
 
+const ACCOUNT_POOL_CONFIG = "poolConfig";
+const ACCOUNT_VIRTUAL_POOL = "virtualPool";
+const ACCOUNT_DAMM_MIGRATION_METADATA = "meteoraDammMigrationMetadata";
+
+const SEED_POOL = "pool";
+const SEED_TOKEN_VAULT = "token_vault";
+const SEED_POOL_AUTHORITY = "pool_authority";
+const SEED_DAMM_V2 = "damm_v2";
+const SEED_EVENT_AUTHORITY = "__event_authority";
+
 type DbcAccount<T extends keyof IdlAccounts<DynamicBondingCurve>> =
   IdlAccounts<DynamicBondingCurve>[T];
-export type PoolConfigAccount = DbcAccount<"poolConfig">;
-export type VirtualPoolAccount = DbcAccount<"virtualPool">;
-export type DammMigrationMetadataAccount =
-  DbcAccount<"meteoraDammMigrationMetadata">;
+export type PoolConfigAccount = DbcAccount<typeof ACCOUNT_POOL_CONFIG>;
+export type VirtualPoolAccount = DbcAccount<typeof ACCOUNT_VIRTUAL_POOL>;
+export type DammMigrationMetadataAccount = DbcAccount<
+  typeof ACCOUNT_DAMM_MIGRATION_METADATA
+>;
 
-export class DbcHelpers implements IHelpers {
-  private RENT_PROGRAM: PublicKey = anchor.web3.SYSVAR_RENT_PUBKEY;
-  private SYSTEM_PROGRAM: PublicKey = anchor.web3.SystemProgram.programId;
-  private ASSOCIATED_TOKEN_PROGRAM: PublicKey = spl.ASSOCIATED_TOKEN_PROGRAM_ID;
-
-  public defaultWallet: PublicKey;
-  public temporarySender?: Keypair;
-
-  public fetchMultipleAccounts: <
-    T extends keyof IdlAccounts<DynamicBondingCurve>
-  >(
-    accountName: T,
-    addresses: PublicKey[]
-  ) => Promise<IdlAccounts<DynamicBondingCurve>[T][]>;
-
-  private handleTx: (
-    signerList: Keypair[],
-    instructions: Ix[],
-    txSettings: TxSettings
-  ) => Promise<ParsedTransactionWithMeta | Ix[] | string>;
-
-  private getTokenProgram: (
-    mint: PublicKey,
-    isToken2022?: boolean
-  ) => Promise<PublicKey>;
-
-  public withSender: (sender: Keypair) => this;
-  private getActors: (txSettings: TxSettings) => [PublicKey, PublicKey];
-  private getSigners: (...additionalSigners: Keypair[]) => Keypair[];
-
-  constructor(
-    private provider: IBlockchainProvider,
-    public program: anchor.Program<DynamicBondingCurve>
-  ) {
-    this.defaultWallet = provider.wallet.publicKey;
-    this.program = program;
-    this.provider = provider;
-    this.fetchMultipleAccounts = fetchMultipleAccountsFactory(
-      provider,
-      program
-    );
-    this.handleTx = handleTxFactory(provider);
-    this.getTokenProgram = getTokenProgramFactory(provider);
-    this.withSender = withSenderFactory();
-    this.getActors = getActorsFactory();
-    this.getSigners = getSignersFactory();
-  }
-
+export class DbcHelpers extends ProgramHelpers<DynamicBondingCurve> {
   async tryCreateConfig(
     configKp: Keypair,
     args: IDbc.CreateConfigArgs,
     txSettings: TxSettings = {}
-  ): Promise<ParsedTransactionWithMeta | Ix[] | string> {
-    const [_payer, sender] = this.getActors(txSettings);
-    const signerList = this.getSigners(configKp);
-
+  ): Promise<TxResult> {
     const usdc = getMintByAppToken(this.provider.cluster, AppToken.USDC);
 
     const ix = await this.program.methods
       .createConfig(...IADbc.convertCreateConfigArgs(args))
       .accountsPartial({
         config: configKp.publicKey,
-        feeClaimer: sender,
-        leftoverReceiver: sender,
+        feeClaimer: this.senderKey(txSettings),
+        leftoverReceiver: this.senderKey(txSettings),
         quoteMint: usdc,
-        payer: sender,
-        systemProgram: this.SYSTEM_PROGRAM,
+        payer: this.rentPayerKey(txSettings),
+        systemProgram: SystemProgram.programId,
         program: this.program.programId,
       })
       .instruction();
 
-    return this.handleTx(signerList, [ix], txSettings);
+    return this.send([ix], txSettings, [configKp]);
   }
 
   async tryCreatePoolWithToken2022(
@@ -115,10 +72,7 @@ export class DbcHelpers implements IHelpers {
     config: PublicKey,
     args: IDbc.CreatePoolWithToken2022Args,
     txSettings: TxSettings = {}
-  ): Promise<ParsedTransactionWithMeta | Ix[] | string> {
-    const [_payer, sender] = this.getActors(txSettings);
-    const signerList = this.getSigners(baseMintKP);
-
+  ): Promise<TxResult> {
     const tokenQuoteProgram = await this.getTokenProgram(quoteMint);
 
     // PDA
@@ -136,8 +90,8 @@ export class DbcHelpers implements IHelpers {
         baseMint: baseMintKP.publicKey,
         quoteMint,
         pool,
-        payer: sender,
-        creator: sender,
+        payer: this.rentPayerKey(txSettings),
+        creator: this.senderKey(txSettings),
         poolAuthority,
         baseVault,
         quoteVault,
@@ -146,7 +100,7 @@ export class DbcHelpers implements IHelpers {
       })
       .instruction();
 
-    return this.handleTx(signerList, [ix], txSettings);
+    return this.send([ix], txSettings, [baseMintKP]);
   }
 
   async trySwap(
@@ -155,9 +109,8 @@ export class DbcHelpers implements IHelpers {
     config: PublicKey,
     args: IDbc.SwapArgs,
     txSettings: TxSettings = {}
-  ): Promise<ParsedTransactionWithMeta | Ix[] | string> {
-    const [_payer, sender] = this.getActors(txSettings);
-    const signerList = this.getSigners();
+  ): Promise<TxResult> {
+    const sender = this.senderKey(txSettings);
 
     const [inputTokenProgram, outputTokenProgram] = await Promise.all([
       this.getTokenProgram(quoteMint),
@@ -207,11 +160,7 @@ export class DbcHelpers implements IHelpers {
       })
       .instruction();
 
-    return this.handleTx(
-      signerList,
-      [...inputAtaIxs, ...outputAtaIxs, ix],
-      txSettings
-    );
+    return this.send([...inputAtaIxs, ...outputAtaIxs, ix], txSettings);
   }
 
   async tryCreateMeteoraDammV2Metadata(
@@ -219,10 +168,7 @@ export class DbcHelpers implements IHelpers {
     quoteMint: PublicKey,
     config: PublicKey,
     txSettings: TxSettings = {}
-  ): Promise<ParsedTransactionWithMeta | Ix[] | string> {
-    const [_payer, sender] = this.getActors(txSettings);
-    const signerList = this.getSigners();
-
+  ): Promise<TxResult> {
     // PDA
     const [virtualPool] = this.pdaPoolAddress(config, quoteMint, baseMint);
     const [migrationMetadata] =
@@ -234,12 +180,12 @@ export class DbcHelpers implements IHelpers {
         virtualPool,
         config,
         migrationMetadata,
-        payer: sender,
-        systemProgram: this.SYSTEM_PROGRAM,
+        payer: this.senderKey(txSettings),
+        systemProgram: SystemProgram.programId,
       })
       .instruction();
 
-    return this.handleTx(signerList, [ix], txSettings);
+    return this.send([ix], txSettings);
   }
 
   async tryMigrateToDammV2(
@@ -251,10 +197,7 @@ export class DbcHelpers implements IHelpers {
     config: PublicKey,
     dammConfig: PublicKey,
     txSettings: TxSettings = {}
-  ): Promise<ParsedTransactionWithMeta | Ix[] | string> {
-    const [_payer, sender] = this.getActors(txSettings);
-    const signerList = this.getSigners(firstPositionNftKP, secondPositionNftKP);
-
+  ): Promise<TxResult> {
     // DBC state
     const [virtualPool] = this.pdaPoolAddress(config, quoteMint, baseMint);
     const [virtualPoolState, configState] = await Promise.all([
@@ -329,24 +272,27 @@ export class DbcHelpers implements IHelpers {
         tokenBVault,
         baseVault: virtualPoolState.poolState.baseVault,
         quoteVault: virtualPoolState.poolState.quoteVault,
-        payer: sender,
+        payer: this.senderKey(txSettings),
         tokenBaseProgram,
         tokenQuoteProgram,
         token2022Program: spl.TOKEN_2022_PROGRAM_ID,
-        systemProgram: this.SYSTEM_PROGRAM,
+        systemProgram: SystemProgram.programId,
         dammEventAuthority,
       })
       .remainingAccounts(remainingAccounts)
       .instruction();
 
-    return this.handleTx(signerList, [ix], txSettings);
+    return this.send([ix], txSettings, [
+      firstPositionNftKP,
+      secondPositionNftKP,
+    ]);
   }
 
   async queryPoolConfig(
     config: PublicKey,
     isDisplayed: boolean = false
   ): Promise<PoolConfigAccount> {
-    const [res] = await this.fetchMultipleAccounts("poolConfig", [config]);
+    const [res] = await this.fetchAccounts(ACCOUNT_POOL_CONFIG, [config]);
     return logAndReturn(res, isDisplayed);
   }
 
@@ -357,7 +303,7 @@ export class DbcHelpers implements IHelpers {
     isDisplayed: boolean = false
   ): Promise<VirtualPoolAccount> {
     const [pda] = this.pdaPoolAddress(config, tokenAMint, tokenBMint);
-    const [res] = await this.fetchMultipleAccounts("virtualPool", [pda]);
+    const [res] = await this.fetchAccounts(ACCOUNT_VIRTUAL_POOL, [pda]);
     return logAndReturn(res, isDisplayed);
   }
 
@@ -369,14 +315,13 @@ export class DbcHelpers implements IHelpers {
   ): Promise<DammMigrationMetadataAccount> {
     const [virtualPool] = this.pdaPoolAddress(config, tokenAMint, tokenBMint);
     const [pda] = this.pdaMigrationDammV2MetadataAddress(virtualPool);
-    const [res] = await this.fetchMultipleAccounts(
-      "meteoraDammMigrationMetadata",
-      [pda]
-    );
+    const [res] = await this.fetchAccounts(ACCOUNT_DAMM_MIGRATION_METADATA, [
+      pda,
+    ]);
     return logAndReturn(res, isDisplayed);
   }
 
-  pdaProgramData() {
+  pdaProgramData(): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [this.program.programId.toBuffer()],
       BPF_LOADER_UPGRADEABLE
@@ -387,43 +332,48 @@ export class DbcHelpers implements IHelpers {
     config: PublicKey,
     tokenAMint: PublicKey,
     tokenBMint: PublicKey
-  ) {
+  ): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [
-        Buffer.from("pool"),
+        Buffer.from(SEED_POOL),
         config.toBuffer(),
         getFirstKey(tokenAMint, tokenBMint),
         getSecondKey(tokenAMint, tokenBMint),
       ],
-      PROGRAM.DBC.PROGRAM_ID
+      this.program.programId
     );
   }
 
-  pdaTokenVaultAddress(tokenMint: PublicKey, pool: PublicKey) {
+  pdaTokenVaultAddress(
+    tokenMint: PublicKey,
+    pool: PublicKey
+  ): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
-      [Buffer.from("token_vault"), tokenMint.toBuffer(), pool.toBuffer()],
-      PROGRAM.DBC.PROGRAM_ID
+      [Buffer.from(SEED_TOKEN_VAULT), tokenMint.toBuffer(), pool.toBuffer()],
+      this.program.programId
     );
   }
 
-  pdaPoolAuthority() {
+  pdaPoolAuthority(): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
-      [Buffer.from("pool_authority")],
-      PROGRAM.DBC.PROGRAM_ID
+      [Buffer.from(SEED_POOL_AUTHORITY)],
+      this.program.programId
     );
   }
 
-  pdaMigrationDammV2MetadataAddress(virtualPool: PublicKey) {
+  pdaMigrationDammV2MetadataAddress(
+    virtualPool: PublicKey
+  ): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
-      [Buffer.from("damm_v2"), virtualPool.toBuffer()],
-      PROGRAM.DBC.PROGRAM_ID
+      [Buffer.from(SEED_DAMM_V2), virtualPool.toBuffer()],
+      this.program.programId
     );
   }
 
-  pdaEventAuthority() {
+  pdaEventAuthority(): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
-      [Buffer.from("__event_authority")],
-      PROGRAM.DBC.PROGRAM_ID
+      [Buffer.from(SEED_EVENT_AUTHORITY)],
+      this.program.programId
     );
   }
 }
