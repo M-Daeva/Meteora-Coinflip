@@ -2,10 +2,16 @@
 /**
  * update-program-set.ts
  *
- * Reads the PROGRAM config from scripts/common/index.ts and generates:
- *   1. scripts/backend/idl.ts           (created from scratch)
- *   2. scripts/common/account/index.ts  (created from scratch)
- *   3. tests/litesvm-suite.ts           (initApp body patched in-place)
+ * Reads the PROGRAM config from scripts/common/config/index.ts and generates:
+ *   1. scripts/common/helpers/index.ts  (created from scratch: getHelperSet + App)
+ *   2. scripts/backend/app.ts           (initApp body patched in-place)
+ *   3. scripts/tests/setup/app.ts       (initTestApp body patched in-place)
+ *
+ * Per program it expects (by convention, NAME = "badge_minter"):
+ *   - IDL json:   common/schema/badge-minter/badge_minter.json, else common/schema/idl/badge_minter.json
+ *   - IDL type:   common/schema/badge-minter/badge_minter.ts, else common/schema/types/badge_minter.ts,
+ *                 exporting the anchor IDL type (name read from the file; else falls back to anchor `Idl`)
+ *   - helper:     common/helpers/badge-minter.ts exporting `BadgeMinterHelpers`
  *
  * Usage:
  *   npx ts-node update-program-set.ts
@@ -38,6 +44,16 @@ const IGNORED_NAMES: Set<string> =
           .filter(Boolean)
       )
     : new Set();
+
+// ---------------------------------------------------------------------------
+// Paths (relative to project root)
+// ---------------------------------------------------------------------------
+
+const CONFIG_PATH = ["scripts", "common", "config", "constants.ts"];
+const SCHEMA_DIR = ["scripts", "common", "schema"];
+const HELPERS_DIR = ["scripts", "common", "helpers"];
+const BACKEND_APP_PATH = ["scripts", "backend", "app.ts"];
+const TEST_APP_PATH = ["scripts", "tests", "setup", "app.ts"];
 
 // ---------------------------------------------------------------------------
 // Naming helpers
@@ -79,6 +95,24 @@ function findProjectRoot(start: string): string {
   }
 }
 
+/** Keep each file's existing line endings (CRLF on Windows checkouts) */
+function detectEol(src: string): "\r\n" | "\n" {
+  return src.includes("\r\n") ? "\r\n" : "\n";
+}
+
+function withEol(text: string, eol: "\r\n" | "\n"): string {
+  const lf = text.replace(/\r\n/g, "\n");
+  return eol === "\n" ? lf : lf.replace(/\n/g, eol);
+}
+
+/** Generated-from-scratch file: reuse the line endings of the version on disk, if any */
+function writeGenerated(filePath: string, content: string): void {
+  const eol = fs.existsSync(filePath)
+    ? detectEol(fs.readFileSync(filePath, "utf8"))
+    : "\n";
+  write(filePath, withEol(content, eol));
+}
+
 function write(filePath: string, content: string): void {
   if (DRY_RUN) {
     console.log(
@@ -116,7 +150,7 @@ function parseProgramConfig(configPath: string): ProgramEntry[] {
 
   // Brace-depth walk to extract the full PROGRAM block
   let depth = 0;
-  let blockStart = startMatch.index + startMatch[0].length - 1;
+  const blockStart = startMatch.index + startMatch[0].length - 1;
   let blockEnd = -1;
   for (let i = blockStart; i < src.length; i++) {
     if (src[i] === "{") depth++;
@@ -148,23 +182,62 @@ function parseProgramConfig(configPath: string): ProgramEntry[] {
 }
 
 // ---------------------------------------------------------------------------
-// IDL path resolution — checks disk for a per-program schema folder,
-// falls back to the shared "idl" folder otherwise.
+// IDL resolution (import paths are relative to common/helpers/index.ts)
 // ---------------------------------------------------------------------------
 
+/** Per-program schema folder if it exists on disk, else the shared "idl" folder. */
 function resolveIdlImportPath(root: string, p: ProgramEntry): string {
   const perProgramAbs = path.join(
     root,
-    "scripts",
-    "common",
-    "schema",
+    ...SCHEMA_DIR,
     p.kebab,
     `${p.name}.json`
   );
   if (fs.existsSync(perProgramAbs)) {
-    return `../common/schema/${p.kebab}/${p.name}.json`;
+    return `../schema/${p.kebab}/${p.name}.json`;
   }
-  return `../common/schema/idl/${p.name}.json`;
+  return `../schema/idl/${p.name}.json`;
+}
+
+interface IdlTypeRef {
+  importPath: string; // "../schema/dbc/dbc"
+  typeName: string; // "DynamicBondingCurve"
+}
+
+/** Name of the anchor IDL type exported by a types file; prefers the PascalCase program name. */
+function detectIdlTypeName(file: string, p: ProgramEntry): string | null {
+  const src = fs.readFileSync(file, "utf8");
+  const re = /export\s+type\s+(\w+)\s*=/g;
+  const names: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src)) !== null) names.push(m[1]);
+  if (names.length === 0) return null;
+  return names.includes(p.pascal) ? p.pascal : names[0];
+}
+
+/**
+ * Anchor-generated IDL type: per-program folder first (schema/<kebab>/<name>.ts),
+ * then the shared schema/types/<name>.ts. Null → fall back to `Idl`.
+ */
+function resolveIdlType(root: string, p: ProgramEntry): IdlTypeRef | null {
+  const candidates = [
+    {
+      abs: path.join(root, ...SCHEMA_DIR, p.kebab, `${p.name}.ts`),
+      rel: `../schema/${p.kebab}/${p.name}`,
+    },
+    {
+      abs: path.join(root, ...SCHEMA_DIR, "types", `${p.name}.ts`),
+      rel: `../schema/types/${p.name}`,
+    },
+  ];
+
+  for (const c of candidates) {
+    if (!fs.existsSync(c.abs)) continue;
+    const typeName = detectIdlTypeName(c.abs, p);
+    if (typeName) return { importPath: c.rel, typeName };
+    console.warn(`⚠  ${c.abs} has no 'export type X = ...' – ignoring it.`);
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -173,21 +246,19 @@ function resolveIdlImportPath(root: string, p: ProgramEntry): string {
 // *another* program (matched by "<camel>Program" naming convention).
 // ---------------------------------------------------------------------------
 
+function helperPath(root: string, p: ProgramEntry): string {
+  return path.join(root, ...HELPERS_DIR, `${p.kebab}.ts`);
+}
+
 function getExtraConstructorDeps(
   root: string,
   entry: ProgramEntry,
   allPrograms: ProgramEntry[]
 ): ProgramEntry[] {
-  const helperPath = path.join(
-    root,
-    "scripts",
-    "common",
-    "account",
-    `${entry.kebab}.ts`
-  );
-  if (!fs.existsSync(helperPath)) return [];
+  const file = helperPath(root, entry);
+  if (!fs.existsSync(file)) return [];
 
-  const src = fs.readFileSync(helperPath, "utf8");
+  const src = fs.readFileSync(file, "utf8");
   const ctorRe = new RegExp(
     `class\\s+${entry.pascal}Helpers\\b[\\s\\S]*?constructor\\s*\\(([\\s\\S]*?)\\)\\s*\\{`
   );
@@ -211,7 +282,7 @@ function getExtraConstructorDeps(
 }
 
 // ---------------------------------------------------------------------------
-// Prepare-function detection — scans tests/litesvm-suite.ts for
+// Prepare-function detection — scans tests/setup/app.ts for
 // `export async function prepare*(...)` whose params can all be resolved
 // against the provider / ChainHelpers / a known Helper class.
 // ---------------------------------------------------------------------------
@@ -222,7 +293,7 @@ interface PrepareCall {
 }
 
 function detectPrepareCalls(
-  litesvmSrc: string,
+  src: string,
   programs: ProgramEntry[],
   ignoredPrograms: ProgramEntry[]
 ): PrepareCall[] {
@@ -234,14 +305,14 @@ function detectPrepareCalls(
   const fnRe = /export\s+async\s+function\s+(prepare\w+)\s*\(([^)]*)\)/g;
   const calls: PrepareCall[] = [];
   let m: RegExpExecArray | null;
-  while ((m = fnRe.exec(litesvmSrc)) !== null) {
+  while ((m = fnRe.exec(src)) !== null) {
     const fnName = m[1];
     const rawParams = m[2]
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
 
-    const args: string[] = [];
+    const callArgs: string[] = [];
     let resolved = true;
 
     for (const param of rawParams) {
@@ -257,240 +328,236 @@ function detectPrepareCalls(
         .trim();
 
       if (/^(LiteSvmProvider|IBlockchainProvider)\b/.test(ptype)) {
-        args.push("provider");
+        callArgs.push("provider");
       } else if (/^ChainHelpers\b/.test(ptype)) {
-        args.push("chain");
+        callArgs.push("chain");
       } else {
         const varName = classToVar.get(ptype);
         if (!varName) {
           resolved = false;
           break;
         }
-        args.push(varName);
+        callArgs.push(varName);
       }
     }
 
-    if (resolved && args.length === rawParams.length) {
-      calls.push({ functionName: fnName, args });
+    if (resolved && callArgs.length === rawParams.length) {
+      calls.push({ functionName: fnName, args: callArgs });
     }
   }
   return calls;
 }
 
 // ---------------------------------------------------------------------------
-// Generator: scripts/backend/idl.ts
+// Generator: scripts/common/helpers/index.ts
 // ---------------------------------------------------------------------------
 
-function generateIdlTs(programs: ProgramEntry[], root: string): string {
-  const imports = programs
-    .map(
-      (p) => `import ${p.pascal}Idl from "${resolveIdlImportPath(root, p)}";`
-    )
-    .join("\n");
-  const fields = programs.map((p) => `${p.pascal}Idl`).join(", ");
-  return `${imports}\n\nexport function loadIdl() {\n  return { ${fields} };\n}\n`;
-}
-
-// ---------------------------------------------------------------------------
-// Generator: scripts/common/account/index.ts
-// ---------------------------------------------------------------------------
-
-function generateAccountIndexTs(
+function generateHelpersIndexTs(
   root: string,
   allPrograms: ProgramEntry[],
   programs: ProgramEntry[],
   ignoredPrograms: ProgramEntry[]
 ): string {
-  // programs        = non-ignored (fully generated)
-  // ignoredPrograms = ignored (partial — helpers only, provider-only ctor)
+  // programs        = non-ignored (fully generated: IDL + Program + helper)
+  // ignoredPrograms = ignored (partial — helper only, provider-only ctor)
+  const allHelpers = [...ignoredPrograms, ...programs];
 
-  const allHelperImports = [...programs, ...ignoredPrograms]
+  for (const p of allHelpers) {
+    if (!fs.existsSync(helperPath(root, p))) {
+      console.warn(
+        `⚠  ${helperPath(root, p)} not found – ${
+          p.pascal
+        }Helpers import will fail.`
+      );
+    }
+  }
+
+  const idlTypes = new Map(
+    programs.map((p) => [p.name, resolveIdlType(root, p)])
+  );
+  const needsGenericIdl = programs.some((p) => !idlTypes.get(p.name));
+  const typeOf = (p: ProgramEntry) => idlTypes.get(p.name)?.typeName ?? "Idl";
+
+  const anchorImport = needsGenericIdl
+    ? `import type { AnchorProvider, Idl } from "@coral-xyz/anchor";`
+    : `import type { AnchorProvider } from "@coral-xyz/anchor";`;
+
+  const programImports = programs
+    .flatMap((p) => {
+      const t = idlTypes.get(p.name);
+      return [
+        `import ${p.pascal}Idl from "${resolveIdlImportPath(root, p)}";`,
+        ...(t ? [`import type { ${t.typeName} } from "${t.importPath}";`] : []),
+      ];
+    })
+    .join("\n");
+
+  const helperImports = allHelpers
     .map((p) => `import { ${p.pascal}Helpers } from "./${p.kebab}";`)
     .join("\n");
 
-  const generics = programs
-    .map((p) => `IDL_${p.key} extends Idl`)
-    .join(",\n  ");
-  const genericList = programs.map((p) => `IDL_${p.key}`).join(", ");
-  const idlParams = programs.map((p) => `  ${p.pascal}Idl: any`).join(",\n");
-  const programGetters = programs
-    .map(
-      (p) =>
-        `  const ${p.camel}Program = getProgram<IDL_${p.key}>(anchorProvider, ${p.pascal}Idl);`
-    )
+  const helperExports = ["base", "chain", ...allHelpers.map((p) => p.kebab)]
+    .map((x) => `export * from "./${x}";`)
     .join("\n");
-  const programReturn = programs.map((p) => `${p.camel}Program`).join(", ");
 
-  const helperParams = programs
-    .map((p) => `  ${p.camel}Program: Program<IDL_${p.key}>`)
-    .join(",\n");
+  const appFields = allHelpers
+    .map((p) => `  ${p.camel}: ${p.pascal}Helpers;`)
+    .join("\n");
+
+  const programGetters = programs
+    .map((p) => {
+      const t = typeOf(p);
+      const cast = t === "Idl" ? `as unknown as Idl` : `as ${t}`;
+      return `  const ${p.camel}Program = getProgram<${t}>(anchorProvider, ${p.pascal}Idl ${cast});`;
+    })
+    .join("\n");
 
   // Extra cross-program constructor deps, detected from each helper's source.
-  const extraDepsByProgram = new Map<string, ProgramEntry[]>();
-  for (const p of programs) {
-    const deps = getExtraConstructorDeps(root, p, allPrograms).filter((d) =>
-      programs.some((pp) => pp.name === d.name)
-    );
-    extraDepsByProgram.set(p.name, deps);
-  }
-
-  // ignored helpers: provider only; regular helpers: provider + own program (+ extra deps)
   const helperInits = [
     ...ignoredPrograms.map(
-      (p) => `  const ${p.camel} = new ${p.pascal}Helpers(provider);`
+      (p) => `    ${p.camel}: new ${p.pascal}Helpers(provider),`
     ),
     ...programs.map((p) => {
-      const deps = extraDepsByProgram.get(p.name) ?? [];
+      const deps = getExtraConstructorDeps(root, p, allPrograms).filter((d) =>
+        programs.some((pp) => pp.name === d.name)
+      );
       const extraArgs = deps.map((d) => `, ${d.camel}Program as any`).join("");
-      return `  const ${p.camel} = new ${p.pascal}Helpers(provider, ${p.camel}Program as any${extraArgs});`;
+      return `    ${p.camel}: new ${p.pascal}Helpers(provider, ${p.camel}Program${extraArgs}),`;
     }),
   ].join("\n");
 
-  const helperReturn = [
-    "chain",
-    ...ignoredPrograms.map((p) => p.camel),
-    ...programs.map((p) => p.camel),
-  ].join(",\n    ");
-
-  const idlPassthrough = programs.map((p) => `    ${p.pascal}Idl`).join(",\n");
-  const progDestructure = programs.map((p) => `${p.camel}Program`).join(", ");
-  const progPassthrough = programs
-    .map((p) => `    ${p.camel}Program`)
-    .join(",\n");
-
-  const appFields = [
-    ...ignoredPrograms.map((p) => `  ${p.camel}: ${p.pascal}Helpers;`),
-    ...programs.map((p) => `  ${p.camel}: ${p.pascal}Helpers;`),
-  ].join("\n");
-
-  return `import { PublicKey } from "@solana/web3.js";
-import { AnchorProvider, Idl, Program } from "@coral-xyz/anchor";
-import { IBlockchainProvider } from "./provider";
+  return `// Wires helpers for a provider.
+// @generated by scripts/backend/update-program-set.ts from PROGRAM in common/config — do not edit.
+${anchorImport}
+import type { PublicKey } from "@solana/web3.js";
+import type { AppToken } from "../config";
+import type { IBlockchainProvider } from "../provider/interface";
 import { getProgram } from "../utils";
-import { AppToken, getTokenPubkeySet } from "../config";
+${programImports}
 import { ChainHelpers } from "./chain";
-${allHelperImports}
+${helperImports}
 
-function getProgramSet<
-  ${generics}
->(
-  anchorProvider: AnchorProvider,
-${idlParams}
-) {
-${programGetters}
-
-  return { ${programReturn} };
-}
-
-function getHelperSetInternal<
-  ${generics}
->(
-  provider: IBlockchainProvider,
-${helperParams}
-) {
-  const chain = new ChainHelpers(provider);
-${helperInits}
-
-  return {
-    ${helperReturn},
-  };
-}
-
-export function getHelperSet<
-  ${generics}
->(
-  provider: IBlockchainProvider,
-  anchorProvider: AnchorProvider,
-${idlParams}
-) {
-  const { ${progDestructure} } = getProgramSet<${genericList}>(
-    anchorProvider,
-${idlPassthrough}
-  );
-
-  return getHelperSetInternal(
-    provider,
-${progPassthrough}
-  );
-}
+${helperExports}
 
 export interface App {
   provider: IBlockchainProvider;
   chain: ChainHelpers;
 ${appFields}
-  token: ReturnType<typeof getTokenPubkeySet>;
+  token: Record<AppToken, PublicKey>;
+}
+
+/**
+ * \`anchorProvider\` only builds ixs and decodes accounts —
+ * pass readonlyAnchorProvider(...) so it can't sign anything.
+ */
+export function getHelperSet(provider: IBlockchainProvider, anchorProvider: AnchorProvider) {
+${programGetters}
+
+  return {
+    chain: new ChainHelpers(provider),
+${helperInits}
+  };
 }
 `;
 }
 
 // ---------------------------------------------------------------------------
-// Patcher: tests/litesvm-suite.ts  –  rewrites the initApp body atomically
+// Patchers: rewrite a function body between its @generated markers
+//   scripts/backend/app.ts       → initApp
+//   scripts/tests/setup/app.ts   → initTestApp
 // ---------------------------------------------------------------------------
 
-const START_TAG = "// @generated:start:initApp-body";
-const END_TAG = "// @generated:end:initApp-body";
+const startTag = (fnName: string) => `// @generated:start:${fnName}-body`;
+const endTag = (fnName: string) => `// @generated:end:${fnName}-body`;
+
+/** Same order as the getHelperSet return */
+function getHelperVars(
+  programs: ProgramEntry[],
+  ignoredPrograms: ProgramEntry[]
+): string[] {
+  return [
+    "chain",
+    ...ignoredPrograms.map((p) => p.camel),
+    ...programs.map((p) => p.camel),
+  ];
+}
 
 function buildInitAppBody(
+  programs: ProgramEntry[],
+  ignoredPrograms: ProgramEntry[]
+): string {
+  const helperVars = getHelperVars(programs, ignoredPrograms);
+
+  // one line while it fits (matches the hand-written file), else one field per line
+  const fields = [
+    "provider",
+    ...helperVars,
+    "token: getTokenPubkeySet(cluster)",
+  ];
+  const oneLine = `  return { ${fields.join(", ")} };`;
+  const returnLines =
+    oneLine.length <= 100
+      ? [oneLine]
+      : [`  return {`, ...fields.map((x) => `    ${x},`), `  };`];
+
+  return [
+    `  ${startTag("initApp")}`,
+    `  const signer = admin ? toTxSigner(admin) : await loadAdminSigner();`,
+    `  const connection = new Connection(getRpc(cluster), COMMITMENT);`,
+    `  const provider = new RpcProvider(connection, signer, cluster);`,
+    ``,
+    `  const { ${helperVars.join(", ")} } = getHelperSet(`,
+    `    provider,`,
+    `    readonlyAnchorProvider(connection, signer.publicKey)`,
+    `  );`,
+    ``,
+    ...returnLines,
+    `  ${endTag("initApp")}`,
+  ].join("\n");
+}
+
+function buildInitTestAppBody(
   programs: ProgramEntry[],
   ignoredPrograms: ProgramEntry[],
   prepareCalls: PrepareCall[]
 ): string {
-  const idlNames = programs.map((p) => `${p.pascal}Idl`).join(", ");
+  const helperVars = getHelperVars(programs, ignoredPrograms);
 
-  // ignored come first in destructure, matching getHelperSetInternal return order
-  const helperDestructure = [
-    "chain",
-    ...ignoredPrograms.map((p) => p.camel),
-    ...programs.map((p) => p.camel),
-  ].join(", ");
+  const returnFields = helperVars.map((x) => `    ${x},`);
 
-  const idlArgs = programs.map((p) => `    ${p.pascal}Idl`).join(",\n");
-
-  const returnFields = [
-    ...ignoredPrograms.map((p) => `    ${p.camel},`),
-    ...programs.map((p) => `    ${p.camel},`),
-  ].join("\n");
-
-  const prepareLines = prepareCalls
-    .map((c) => `      await ${c.functionName}(${c.args.join(", ")});`)
-    .join("\n");
+  const prepareLines = prepareCalls.map(
+    (c) => `  await ${c.functionName}(${c.args.join(", ")});`
+  );
 
   return [
-    `  ${START_TAG}`,
-    `  const { ${idlNames} } = loadIdl();`,
-    `  const anchorProvider = getAnchorProvider(cluster, adminKeypair);`,
-    `  const provider =`,
-    `    cluster === Cluster.Localnet`,
-    `      ? getLiteSvmProvider(adminKeypair)`,
-    `      : createProvider({ type: "real", provider: anchorProvider });`,
+    `  ${startTag("initTestApp")}`,
+    `  const CLUSTER = Cluster.Localnet;`,
     ``,
-    `  const { ${helperDestructure} } = getHelperSet(`,
+    `  const signer = toTxSigner(admin);`,
+    `  const provider = new LiteSvmProvider(signer);`,
+    `  const connection = new Connection(getRpc(CLUSTER));`,
+    `  const { ${helperVars.join(", ")} } = getHelperSet(`,
     `    provider,`,
-    `    anchorProvider,`,
-    idlArgs,
+    `    readonlyAnchorProvider(connection, signer.publicKey)`,
     `  );`,
     ``,
-    `  if (provider instanceof LiteSvmProvider) {`,
-    `    try {`,
-    `      await initEnvWithBalances(provider, chain, programsToMigrate);`,
-    prepareLines,
-    `    } catch (e) {`,
-    `      li(e);`,
-    `    }`,
-    `  }`,
+    `  await initEnvWithBalances(provider, chain, programsToMigrate);`,
+    ...prepareLines,
     ``,
     `  return {`,
-    `    provider: provider as IBlockchainProvider,`,
-    `    chain,`,
-    returnFields,
-    `    token: getTokenPubkeySet(cluster),`,
+    `    provider,`,
+    ...returnFields,
+    `    token: getTokenPubkeySet(CLUSTER),`,
     `  };`,
-    `  ${END_TAG}`,
+    `  ${endTag("initTestApp")}`,
   ].join("\n");
 }
 
-function findInitAppBodyRange(src: string): [number, number] | null {
-  const sigRe = /export\s+async\s+function\s+initApp\s*\(/;
+function findFunctionBodyRange(
+  src: string,
+  fnName: string
+): [number, number] | null {
+  const sigRe = new RegExp(`export\\s+async\\s+function\\s+${fnName}\\s*\\(`);
   const sigMatch = src.match(sigRe);
   if (!sigMatch || sigMatch.index === undefined) return null;
 
@@ -510,7 +577,7 @@ function findInitAppBodyRange(src: string): [number, number] | null {
     i++;
   }
 
-  // Advance to the opening '{' of the function body
+  // Advance to the opening '{' of the function body (skips the return type)
   while (i < src.length && src[i] !== "{") i++;
   if (i >= src.length) return null;
 
@@ -529,28 +596,33 @@ function findInitAppBodyRange(src: string): [number, number] | null {
   return null;
 }
 
-function patchInitApp(
+/** Replaces the code between fnName's markers; without markers, replaces the whole body. */
+function patchFunctionBody(
   src: string,
-  programs: ProgramEntry[],
-  ignoredPrograms: ProgramEntry[],
-  prepareCalls: PrepareCall[]
+  fnName: string,
+  body: string,
+  fileLabel: string
 ): string {
-  const newBody = buildInitAppBody(programs, ignoredPrograms, prepareCalls);
+  const START_TAG = startTag(fnName);
+  const END_TAG = endTag(fnName);
+  const eol = detectEol(src);
+  const newBody = withEol(body, eol);
 
   const startIdx = src.indexOf(START_TAG);
   const endIdx = src.indexOf(END_TAG);
 
   if (startIdx !== -1 && endIdx !== -1) {
     const lineStart = src.lastIndexOf("\n", startIdx) + 1;
-    const lineEnd = src.indexOf("\n", endIdx + END_TAG.length);
+    let lineEnd = src.indexOf("\n", endIdx + END_TAG.length);
+    if (lineEnd > 0 && src[lineEnd - 1] === "\r") lineEnd--; // keep the CR of CRLF
     const tail = lineEnd === -1 ? "" : src.slice(lineEnd);
     return src.slice(0, lineStart) + newBody + tail;
   }
 
-  const range = findInitAppBodyRange(src);
+  const range = findFunctionBodyRange(src, fnName);
   if (!range) {
     console.warn(
-      `⚠  Could not locate initApp in litesvm-suite.ts – skipping patch.\n` +
+      `⚠  Could not locate ${fnName} in ${fileLabel} – skipping patch.\n` +
         `   Place these markers inside the function body and re-run:\n\n` +
         `   ${START_TAG}\n   ${END_TAG}\n`
     );
@@ -559,8 +631,22 @@ function patchInitApp(
 
   const [bodyOpen, bodyClose] = range;
   return (
-    src.slice(0, bodyOpen + 1) + "\n" + newBody + "\n" + src.slice(bodyClose)
+    src.slice(0, bodyOpen + 1) + eol + newBody + eol + src.slice(bodyClose)
   );
+}
+
+function patchFile(filePath: string, patch: (src: string) => string): void {
+  if (!fs.existsSync(filePath)) {
+    console.warn(`⚠  ${filePath} not found – skipping.`);
+    return;
+  }
+  const original = fs.readFileSync(filePath, "utf8");
+  const patched = patch(original);
+  if (patched !== original) {
+    write(filePath, patched);
+  } else {
+    console.log(`ℹ  ${filePath} unchanged.`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -571,16 +657,16 @@ function main(): void {
   const root = ROOT_OVERRIDE ?? findProjectRoot(__dirname);
   console.log(`Project root: ${root}`);
 
-  const configPath = path.join(root, "scripts", "common", "config", "index.ts");
+  const configPath = path.join(root, ...CONFIG_PATH);
   if (!fs.existsSync(configPath))
     throw new Error(`Config not found: ${configPath}`);
 
   const allPrograms = parseProgramConfig(configPath);
 
   // split once, reuse everywhere
-  const ignoredPrograms = IGNORED_NAMES.size
-    ? allPrograms.filter((p) => IGNORED_NAMES.has(p.name.toLowerCase()))
-    : [];
+  const ignoredPrograms = allPrograms.filter((p) =>
+    IGNORED_NAMES.has(p.name.toLowerCase())
+  );
   const programs = allPrograms.filter(
     (p) => !IGNORED_NAMES.has(p.name.toLowerCase())
   );
@@ -590,44 +676,39 @@ function main(): void {
   }
   console.log(`Programs: ${programs.map((p) => p.pascal).join(", ")}`);
 
-  // 1. scripts/backend/idl.ts
-  write(
-    path.join(root, "scripts", "backend", "idl.ts"),
-    generateIdlTs(programs, root)
+  // 1. scripts/common/helpers/index.ts
+  writeGenerated(
+    path.join(root, ...HELPERS_DIR, "index.ts"),
+    generateHelpersIndexTs(root, allPrograms, programs, ignoredPrograms)
   );
 
-  // 2. scripts/common/account/index.ts
-  write(
-    path.join(root, "scripts", "common", "account", "index.ts"),
-    generateAccountIndexTs(root, allPrograms, programs, ignoredPrograms)
+  // 2. scripts/backend/app.ts  (initApp body only)
+  patchFile(path.join(root, ...BACKEND_APP_PATH), (src) =>
+    patchFunctionBody(
+      src,
+      "initApp",
+      buildInitAppBody(programs, ignoredPrograms),
+      "backend/app.ts"
+    )
   );
 
-  // 3. tests/litesvm-suite.ts  (initApp body only)
-  const liteSvmPath = path.join(root, "tests", "litesvm-suite.ts");
-  if (!fs.existsSync(liteSvmPath)) {
-    console.warn(`⚠  ${liteSvmPath} not found – skipping.`);
-    return;
-  }
-  const original = fs.readFileSync(liteSvmPath, "utf8");
-  const prepareCalls = detectPrepareCalls(original, programs, ignoredPrograms);
-  if (prepareCalls.length) {
-    console.log(
-      `Detected prepare-functions: ${prepareCalls
-        .map((c) => c.functionName)
-        .join(", ")}`
+  // 3. scripts/tests/setup/app.ts  (initTestApp body only)
+  patchFile(path.join(root, ...TEST_APP_PATH), (src) => {
+    const prepareCalls = detectPrepareCalls(src, programs, ignoredPrograms);
+    if (prepareCalls.length) {
+      console.log(
+        `Detected prepare-functions: ${prepareCalls
+          .map((c) => c.functionName)
+          .join(", ")}`
+      );
+    }
+    return patchFunctionBody(
+      src,
+      "initTestApp",
+      buildInitTestAppBody(programs, ignoredPrograms, prepareCalls),
+      "tests/setup/app.ts"
     );
-  }
-  const patched = patchInitApp(
-    original,
-    programs,
-    ignoredPrograms,
-    prepareCalls
-  );
-  if (patched !== original) {
-    write(liteSvmPath, patched);
-  } else {
-    console.log("ℹ  litesvm-suite.ts unchanged.");
-  }
+  });
 }
 
 main();

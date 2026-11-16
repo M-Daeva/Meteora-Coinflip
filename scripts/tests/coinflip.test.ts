@@ -1,21 +1,23 @@
 import * as anchor from "@coral-xyz/anchor";
 import { describe, it, expect, beforeAll } from "vitest";
-import { ResultType, TxSettings } from "../scripts/common/interfaces";
-import { initApp } from "./litesvm-suite";
-import { AppUser } from "../scripts/common/config/litesvm";
 import { Keypair, PublicKey } from "@solana/web3.js";
-import { App } from "../scripts/common/account";
-import { getKeypairFromSeed } from "../scripts/common/utils";
-import { AppToken, Cluster, getMintByAppToken } from "../scripts/common/config";
-import { BetSide } from "../scripts/common/interfaces/coinflip";
+import { AppUser } from "./setup/app-user";
+import { getKeypairFromSeed } from "../backend/utils";
+import { BetSide } from "../common/interfaces/coinflip";
+import { initTestApp } from "./setup/app";
+import {
+  AppToken,
+  getMintByAppToken,
+  ResultType,
+  type App,
+  type TxSettings,
+} from "../common";
 
 // ============================================================
 // === constants ===
 // ============================================================
 
 const { BN } = anchor;
-
-const CLUSTER: Cluster = Cluster.Localnet;
 
 const U64_MAX = new BN("18446744073709551615");
 const MIN_SQRT_PRICE = new BN("4295048016");
@@ -303,7 +305,7 @@ describe("Coinflip", () => {
     const [betPda] = app.coinflip.pdaBet(bettor.publicKey, betNonce);
     const seed = betPda.toBuffer();
 
-    await app.oraoVrf.withSender(worker).tryFulfill(seed, TX);
+    await app.oraoVrf.withSender(worker).tryFulfill(seed, worker, TX);
 
     const {
       request: { fulfilled },
@@ -322,7 +324,7 @@ describe("Coinflip", () => {
   // --- lifecycle ---
 
   beforeAll(async () => {
-    app = await initApp(CLUSTER, admin);
+    app = await initTestApp(admin);
     user.setChain(app.chain);
     quoteMint = getMintByAppToken(app.provider.cluster, AppToken.USDC);
     [alice] = await user.rotateUsers(1);

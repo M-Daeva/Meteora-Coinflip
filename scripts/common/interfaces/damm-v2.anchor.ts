@@ -1,7 +1,7 @@
 // Auto-generated Anchor types and converters
 import * as anchor from '@coral-xyz/anchor';
 import { PublicKey } from '@solana/web3.js';
-import { CreateConfigArgs, StaticConfigParameters, CreateDynamicConfigArgs, DynamicConfigParameters, PoolFeeParameters, BaseFeeParameters, DynamicFeeParameters, SwapV2Args, SwapParameters2 } from './damm-v2';
+import { type CreateConfigArgs, type StaticConfigParameters, type CreateDynamicConfigArgs, type DynamicConfigParameters, type PoolFeeParameters, type BaseFeeParameters, type DynamicFeeParameters, type SwapV2Args, type SwapParameters2 } from './damm-v2';
 
 // Anchor-generated types
 export type AnchorCreateConfigArgs = [
